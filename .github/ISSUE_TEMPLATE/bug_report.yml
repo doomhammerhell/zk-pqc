@@ -1,0 +1,22 @@
+name: Bug Report
+description: Create a report to help us improve deterministic execution bounds.
+title: "[BUG] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for taking the time to report an issue. If this is a PQC/Cryptographic exploit, please refer to SECURITY.md instead."
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we categorically reproduce this divergence?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: The formal sequence of execution expected.
+    validations:
+      required: true

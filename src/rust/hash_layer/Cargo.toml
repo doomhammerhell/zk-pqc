@@ -1,0 +1,7 @@
+[package]
+name = "zk_pqc_hash_layer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zk_pqc_core = { path = "../core" }

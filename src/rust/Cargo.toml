@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "core",
+    "hash_layer"
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["ZK-PQC Research Group"]
+license = "Apache-2.0"

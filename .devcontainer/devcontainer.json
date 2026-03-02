@@ -1,0 +1,25 @@
+{
+  "name": "ZK-PQC Environment",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "target": "dev-env"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      },
+      "extensions": [
+        "starkware.cairo1",
+        "rust-lang.rust-analyzer",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "james-yu.latex-workshop",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  },
+  "postCreateCommand": "npm install || true",
+  "remoteUser": "root"
+}

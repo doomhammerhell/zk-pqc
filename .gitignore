@@ -1,0 +1,35 @@
+# Node
+node_modules/
+dist/
+
+# Rust
+target/
+Cargo.lock
+
+# Cairo (Scarb)
+target/
+Scarb.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# LaTeX
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.pdf
+*.synctex.gz
+*.toc
+
+# OS / Editor
+.DS_Store
+.vscode/settings.json

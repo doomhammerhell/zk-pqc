@@ -1,0 +1,34 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Every Sunday
+  push:
+    branches: [ "main" ]
+
+jobs:
+  audit:
+    name: Security Scans
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python, javascript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Cargo Audit
+        run: |
+          cargo install cargo-audit
+          cargo audit
+        working-directory: ./src/rust

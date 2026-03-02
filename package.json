@@ -1,0 +1,24 @@
+{
+  "name": "zk-pqc-infrastructure",
+  "version": "1.0.0",
+  "description": "Post-Quantum Signature Verification for STARK-Based Smart Contracts",
+  "private": true,
+  "scripts": {
+    "prepare": "husky install",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "husky": "^8.0.0",
+    "lint-staged": "^13.0.0",
+    "prettier": "^2.8.0",
+    "semantic-release": "^21.0.0",
+    "@semantic-release/changelog": "^6.0.0",
+    "@semantic-release/git": "^10.0.0"
+  },
+  "lint-staged": {
+    "*.{js,ts,json,md,yml}": "prettier --write",
+    "*.rs": "cargo clippy --manifest-path src/rust/Cargo.toml -- -D warnings",
+    "*.cairo": "cd src/cairo && scarb fmt"
+  }
+}
