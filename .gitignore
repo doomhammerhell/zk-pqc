@@ -29,6 +29,8 @@ env/
 *.pdf
 *.synctex.gz
 *.toc
+.kiro
+.gitignore
 
 # OS / Editor
 .DS_Store

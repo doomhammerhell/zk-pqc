@@ -18,7 +18,7 @@
   },
   "lint-staged": {
     "*.{js,ts,json,md,yml}": "prettier --write",
-    "*.rs": "cargo clippy --manifest-path src/rust/Cargo.toml -- -D warnings",
+    "*.rs": "bash -c 'cargo clippy --manifest-path src/rust/Cargo.toml -- -D warnings'",
     "*.cairo": "cd src/cairo && scarb fmt"
   }
 }

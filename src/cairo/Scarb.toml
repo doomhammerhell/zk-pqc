@@ -10,5 +10,8 @@ starknet = "2.6.0"
 sierra = true
 casm = true
 
+[dev-dependencies]
+cairo_test = "2.16.0"
+
 [tool.fmt]
 sort-module-level-items = true
