@@ -16,6 +16,7 @@ mod tests {
 
     /// Compute the determinant of a square matrix over the Stark252 field
     /// using Gaussian elimination with partial pivoting.
+    #[allow(clippy::needless_range_loop)]
     fn field_determinant(matrix: &[Vec<FELT>]) -> FELT {
         let n = matrix.len();
         if n == 0 {
@@ -26,8 +27,8 @@ mod tests {
 
         for col in 0..n {
             let mut pivot = None;
-            for row in col..n {
-                if m[row][col] != FELT::zero() {
+            for (row, m_row) in m.iter().enumerate().take(n).skip(col) {
+                if m_row[col] != FELT::zero() {
                     pivot = Some(row);
                     break;
                 }
@@ -40,14 +41,14 @@ mod tests {
                 m.swap(col, pivot);
                 det = FELT::zero() - det;
             }
-            let pivot_val = m[col][col].clone();
-            det = det * &pivot_val;
+            let pivot_val = m[col][col];
+            det *= pivot_val;
             let inv_pivot = pivot_val.inv().unwrap();
             for row in (col + 1)..n {
-                let factor = &m[row][col] * &inv_pivot;
+                let factor = m[row][col] * inv_pivot;
                 for k in col..n {
-                    let val = &m[col][k] * &factor;
-                    m[row][k] = &m[row][k] - val;
+                    let val = m[col][k] * factor;
+                    m[row][k] = m[row][k] - val;
                 }
             }
         }
@@ -103,10 +104,10 @@ mod tests {
 
             // --- Non-triviality: MDS is not the identity matrix ---
             let mut is_identity = true;
-            for i in 0..T {
-                for j in 0..T {
+            for (i, mds_row) in mds.iter().enumerate().take(T) {
+                for (j, &mds_val) in mds_row.iter().enumerate().take(T) {
                     let expected = if i == j { FELT::one() } else { FELT::zero() };
-                    if mds[i][j] != expected {
+                    if mds_val != expected {
                         is_identity = false;
                     }
                 }
@@ -132,7 +133,7 @@ mod tests {
                 for row_combo in (0..T).combinations(size) {
                     for col_combo in (0..T).combinations(size) {
                         let submatrix: Vec<Vec<FELT>> = row_combo.iter()
-                            .map(|&r| col_combo.iter().map(|&c| mds[r][c].clone()).collect())
+                            .map(|&r| col_combo.iter().map(|&c| mds[r][c]).collect())
                             .collect();
                         let det = field_determinant(&submatrix);
                         prop_assert!(

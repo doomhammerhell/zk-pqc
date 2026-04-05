@@ -1,0 +1,12 @@
+[package]
+name = "zk_pqc_proof_layer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zk_pqc_hash_layer = { path = "../hash_layer" }
+zk_pqc_signature_layer = { path = "../signature_layer" }
+lambdaworks-math = "0.13.0"
+
+[dev-dependencies]
+proptest = "1.4"

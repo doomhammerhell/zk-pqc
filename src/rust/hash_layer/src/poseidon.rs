@@ -1,4 +1,4 @@
-use crate::constants::{FELT, T, RF, RP, get_mds_matrix, get_round_constants};
+use crate::constants::{get_mds_matrix, get_round_constants, FELT, RF, RP, T};
 
 pub struct Poseidon {
     mds: [[FELT; T]; T],
