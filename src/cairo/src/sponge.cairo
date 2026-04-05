@@ -15,7 +15,7 @@ fn absorb(ref state: Array<felt252>, input: Span<felt252>) {
             }
             next_state.append(val);
             j += 1;
-        };
+        }
         state = next_state;
         permute(ref state);
         i += rate;
@@ -36,7 +36,7 @@ pub fn hash_with_ds(ds: felt252, input: Span<felt252>) -> felt252 {
     while i < T - 1 {
         state.append(0);
         i += 1;
-    };
+    }
     state.append(ds); // DS in the capacity part
 
     absorb(ref state, input);

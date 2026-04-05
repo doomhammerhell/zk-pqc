@@ -6,15 +6,13 @@
 
 #[cfg(test)]
 mod test_vectors {
-    use zk_pqc_cairo::hash_trait::{HashFunction, PoseidonHash, HybridHashWrapper};
-    use zk_pqc_cairo::sponge::{hash as sponge_hash, hash_with_ds as sponge_hash_with_ds};
-    use zk_pqc_cairo::merkle::{build_tree, root, prove, verify};
+    use zk_pqc_cairo::hash_trait::{HashFunction, HybridHashWrapper, PoseidonHash};
     use zk_pqc_cairo::lamport::{
-        keygen as lamport_keygen, sign as lamport_sign, verify as lamport_verify, felt_to_bits,
+        felt_to_bits, keygen as lamport_keygen, sign as lamport_sign, verify as lamport_verify,
     };
-    use zk_pqc_cairo::wots::{
-        keygen as wots_keygen, sign as wots_sign, verify as wots_verify,
-    };
+    use zk_pqc_cairo::merkle::{build_tree, prove, root, verify};
+    use zk_pqc_cairo::sponge::{hash as sponge_hash, hash_with_ds as sponge_hash_with_ds};
+    use zk_pqc_cairo::wots::{keygen as wots_keygen, sign as wots_sign, verify as wots_verify};
 
     // ═══════════════════════════════════════════════════════════════
     // Poseidon Hash Vectors (from spec/test_vectors/poseidon_hash.json)
@@ -115,7 +113,9 @@ mod test_vectors {
     fn test_vec_hybrid_003() {
         // input: [42], ds=5
         let input = array![42];
-        let result = HashFunction::<HybridHashWrapper>::hash_with_domain_separation(5, input.span());
+        let result = HashFunction::<
+            HybridHashWrapper,
+        >::hash_with_domain_separation(5, input.span());
         let expected: felt252 = 0x024040444b5ef483e9fdce7e64882519670c0683565e47f3745eca8cd154b773;
         assert(result == expected, 'hybrid_003 mismatch');
     }
@@ -130,7 +130,8 @@ mod test_vectors {
         let leaves = array![1, 2];
         let nodes = build_tree::<PoseidonHash>(leaves.span());
         let r = root(nodes.span());
-        let expected_root: felt252 = 0x00ac7af10fab1660afa66e18f87215e524bdf98fc71bef1aa4615e30235cd530;
+        let expected_root: felt252 =
+            0x00ac7af10fab1660afa66e18f87215e524bdf98fc71bef1aa4615e30235cd530;
         assert(r == expected_root, 'merkle_001 root mismatch');
 
         // Verify proof round-trip
@@ -145,7 +146,8 @@ mod test_vectors {
         let leaves = array![10, 20, 30, 40];
         let nodes = build_tree::<PoseidonHash>(leaves.span());
         let r = root(nodes.span());
-        let expected_root: felt252 = 0x03cc1c14a0008267a319c3a5edfded92373ca47320df58373a69f37a7fabd862;
+        let expected_root: felt252 =
+            0x03cc1c14a0008267a319c3a5edfded92373ca47320df58373a69f37a7fabd862;
         assert(r == expected_root, 'merkle_002 root mismatch');
 
         let proof = prove(nodes.span(), 4, 2);
@@ -159,7 +161,8 @@ mod test_vectors {
         let leaves = array![1, 2, 3];
         let nodes = build_tree::<PoseidonHash>(leaves.span());
         let r = root(nodes.span());
-        let expected_root: felt252 = 0x01d1325f936896a52f1857fc10445a61f632da3b1faca58a3ff97f76c44a21ff;
+        let expected_root: felt252 =
+            0x01d1325f936896a52f1857fc10445a61f632da3b1faca58a3ff97f76c44a21ff;
         assert(r == expected_root, 'merkle_003 root mismatch');
 
         let proof = prove(nodes.span(), 3, 1);
@@ -179,18 +182,20 @@ mod test_vectors {
         let kp = lamport_keygen::<PoseidonHash>(seed.span());
 
         // Verify first public key entry matches Rust vector
-        let expected_pub0_0: felt252 = 0x035df0ee764de4c6ce15a49288c902257f5db329d136b67eedee9ad3cb04356f;
+        let expected_pub0_0: felt252 =
+            0x035df0ee764de4c6ce15a49288c902257f5db329d136b67eedee9ad3cb04356f;
         assert(*kp.public_0.at(0) == expected_pub0_0, 'lam_001 pub0[0] mismatch');
 
-        let expected_pub1_0: felt252 = 0x041c1c92d286221a5543f1f4d8601d763b4e21b4b45693c5b28ef4f9b9b6ff69;
+        let expected_pub1_0: felt252 =
+            0x041c1c92d286221a5543f1f4d8601d763b4e21b4b45693c5b28ef4f9b9b6ff69;
         assert(*kp.public_1.at(0) == expected_pub1_0, 'lam_001 pub1[0] mismatch');
 
         // Sign and verify
         let bits = felt_to_bits(999);
         let sig = lamport_sign(@kp, bits.span());
-        let valid = lamport_verify::<PoseidonHash>(
-            kp.public_0.span(), kp.public_1.span(), bits.span(), @sig,
-        );
+        let valid = lamport_verify::<
+            PoseidonHash,
+        >(kp.public_0.span(), kp.public_1.span(), bits.span(), @sig);
         assert(valid, 'lam_001 verify failed');
     }
 
@@ -202,18 +207,20 @@ mod test_vectors {
         let kp = lamport_keygen::<PoseidonHash>(seed.span());
 
         // Verify first public key entry matches Rust vector
-        let expected_pub0_0: felt252 = 0x0228fe87c4daaedf979f018298bb902dfa503d5f5b3652c231a8a182a4a96f1d;
+        let expected_pub0_0: felt252 =
+            0x0228fe87c4daaedf979f018298bb902dfa503d5f5b3652c231a8a182a4a96f1d;
         assert(*kp.public_0.at(0) == expected_pub0_0, 'lam_002 pub0[0] mismatch');
 
-        let expected_pub1_0: felt252 = 0x030460270c0ba249e42644f0f401789e34e2c7058575bf507146a3718d3920a9;
+        let expected_pub1_0: felt252 =
+            0x030460270c0ba249e42644f0f401789e34e2c7058575bf507146a3718d3920a9;
         assert(*kp.public_1.at(0) == expected_pub1_0, 'lam_002 pub1[0] mismatch');
 
         // Sign and verify
         let bits = felt_to_bits(1);
         let sig = lamport_sign(@kp, bits.span());
-        let valid = lamport_verify::<PoseidonHash>(
-            kp.public_0.span(), kp.public_1.span(), bits.span(), @sig,
-        );
+        let valid = lamport_verify::<
+            PoseidonHash,
+        >(kp.public_0.span(), kp.public_1.span(), bits.span(), @sig);
         assert(valid, 'lam_002 verify failed');
     }
 
@@ -230,7 +237,8 @@ mod test_vectors {
         let kp = wots_keygen::<PoseidonHash>(w, seed.span());
 
         // Verify first public chain entry matches Rust vector
-        let expected_pub_0: felt252 = 0x03bfe088907c504df8bb073a52b504fe2bf7b580ddb9b42619a0321877b52e67;
+        let expected_pub_0: felt252 =
+            0x03bfe088907c504df8bb073a52b504fe2bf7b580ddb9b42619a0321877b52e67;
         assert(*kp.public_chains.at(0) == expected_pub_0, 'wots_001 pub[0] mismatch');
 
         // Sign and verify
@@ -249,7 +257,8 @@ mod test_vectors {
         let kp = wots_keygen::<PoseidonHash>(w, seed.span());
 
         // Verify first public chain entry matches Rust vector
-        let expected_pub_0: felt252 = 0x079bf17ffa99182ad61f9611930db76e842731412fb1189afb06a414970a322c;
+        let expected_pub_0: felt252 =
+            0x079bf17ffa99182ad61f9611930db76e842731412fb1189afb06a414970a322c;
         assert(*kp.public_chains.at(0) == expected_pub_0, 'wots_002 pub[0] mismatch');
 
         // Sign and verify

@@ -24,10 +24,7 @@ pub trait IPCAVerifier<TState> {
     ///
     /// Verifies the batch proof, updates the SMT root, and records consumed indices.
     fn submit_batch(
-        ref self: TState,
-        batch_proof: Span<felt252>,
-        smt_diff: Span<u64>,
-        new_smt_root: felt252,
+        ref self: TState, batch_proof: Span<felt252>, smt_diff: Span<u64>, new_smt_root: felt252,
     );
 
     /// Read the current SMT root.
@@ -40,8 +37,8 @@ pub trait IPCAVerifier<TState> {
 #[starknet::contract]
 mod PCAVerifier {
     use starknet::storage::{
-        StoragePointerReadAccess, StoragePointerWriteAccess,
-        Map, StorageMapReadAccess, StorageMapWriteAccess,
+        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
     };
 
     #[storage]
@@ -122,7 +119,7 @@ mod PCAVerifier {
                 let idx = *smt_diff.at(i);
                 assert(!self.consumed_indices.read(idx), 'index already consumed');
                 i += 1;
-            };
+            }
 
             let proof_root = *batch_proof.at(1);
             assert(proof_root == new_smt_root, 'proof root mismatch');
@@ -136,20 +133,14 @@ mod PCAVerifier {
                 let idx = *smt_diff.at(j);
                 self.consumed_indices.write(idx, true);
                 j += 1;
-            };
+            }
 
             self.smt_root.write(new_smt_root);
 
             let batch_id = self.batch_count.read() + 1;
             self.batch_count.write(batch_id);
 
-            self.emit(
-                BatchSubmitted {
-                    batch_id,
-                    new_smt_root,
-                    num_indices: smt_diff.len(),
-                },
-            );
+            self.emit(BatchSubmitted { batch_id, new_smt_root, num_indices: smt_diff.len() });
         }
 
         fn get_smt_root(self: @ContractState) -> felt252 {
@@ -172,9 +163,7 @@ mod PCAVerifier {
     /// In production this invokes a full STARK verifier; here we use a
     /// Poseidon-based commitment check that will be replaced in Phase 3.
     fn verify_stark_proof(
-        proof: Span<felt252>,
-        message_hash: felt252,
-        commitment_root: felt252,
+        proof: Span<felt252>, message_hash: felt252, commitment_root: felt252,
     ) -> bool {
         if proof.len() < 3 {
             return false;
@@ -188,7 +177,7 @@ mod PCAVerifier {
         while i < proof.len() - 1 {
             hash_input.append(*proof.at(i));
             i += 1;
-        };
+        }
 
         let verification_hash = zk_pqc_cairo::sponge::hash(hash_input.span());
         let tag = *proof.at(proof.len() - 1);
@@ -197,8 +186,8 @@ mod PCAVerifier {
 
     #[cfg(test)]
     mod tests {
-        use super::PCAVerifierImpl;
         use zk_pqc_cairo::sponge::hash;
+        use super::PCAVerifierImpl;
 
         fn build_valid_proof(
             message_hash: felt252, commitment_root: felt252, proof_data: Span<felt252>,
@@ -210,7 +199,7 @@ mod PCAVerifier {
             while i < proof_data.len() {
                 hash_input.append(*proof_data.at(i));
                 i += 1;
-            };
+            }
             let tag = hash(hash_input.span());
 
             let mut proof: Array<felt252> = ArrayTrait::new();
@@ -220,7 +209,7 @@ mod PCAVerifier {
             while j < proof_data.len() {
                 proof.append(*proof_data.at(j));
                 j += 1;
-            };
+            }
             proof.append(tag);
             proof
         }

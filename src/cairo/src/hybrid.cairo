@@ -1,10 +1,10 @@
-use zk_pqc_cairo::sponge::hash as poseidon_hash;
 use core::sha256::compute_sha256_byte_array;
+use zk_pqc_cairo::sponge::hash as poseidon_hash;
 
 pub fn hybrid_hash(input: Span<felt252>) -> felt252 {
     // 1. Poseidon Hash
     let p_hash = poseidon_hash(input);
-    
+
     // 2. SHA-256 Hash
     // Convert felt252 span to ByteArray for sha256
     let mut ba = Default::default();
@@ -16,17 +16,17 @@ pub fn hybrid_hash(input: Span<felt252>) -> felt252 {
         ba.append_word(val.high.into(), 16);
         ba.append_word(val.low.into(), 16);
         i += 1;
-    };
-    
+    }
+
     let sha_res = compute_sha256_byte_array(@ba);
     let sha_span = sha_res.span();
-    
+
     // 3. Truncate/Convert SHA-256 to felt252
     // sha_res is [u32; 8] in big-endian order. We reconstruct the full 256-bit value
     // then zero the MSB (top byte of word 0) to fit in the Stark252 field.
     // This matches the Rust truncation: padded[0] = 0, padded[1..32] = sha[1..32].
     let sha_felt: felt252 = sha256_words_to_felt(sha_span);
-    
+
     // 4. Combine
     p_hash + sha_felt
 }

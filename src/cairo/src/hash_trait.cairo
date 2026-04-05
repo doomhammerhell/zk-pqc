@@ -1,7 +1,6 @@
-use zk_pqc_cairo::sponge::hash as poseidon_hash_fn;
-use zk_pqc_cairo::sponge::hash_with_ds as poseidon_hash_with_ds_fn;
-use zk_pqc_cairo::hybrid::{hybrid_hash as hybrid_hash_fn, sha256_words_to_felt};
 use core::sha256::compute_sha256_byte_array;
+use zk_pqc_cairo::hybrid::{hybrid_hash as hybrid_hash_fn, sha256_words_to_felt};
+use zk_pqc_cairo::sponge::{hash as poseidon_hash_fn, hash_with_ds as poseidon_hash_with_ds_fn};
 
 /// Trait-based hash abstraction for the Hash Layer (L1).
 /// Upper layers (Merkle, Signature) are generic over this trait.
@@ -49,7 +48,7 @@ pub impl Sha256HashImpl of HashFunction<Sha256Hash> {
         while i < input.len() {
             combined.append(*input.at(i));
             i += 1;
-        };
+        }
         sha256_felts(combined.span())
     }
 }
@@ -79,7 +78,7 @@ fn sha256_felts(input: Span<felt252>) -> felt252 {
         ba.append_word(val.high.into(), 16);
         ba.append_word(val.low.into(), 16);
         i += 1;
-    };
+    }
 
     let sha_res = compute_sha256_byte_array(@ba);
     let sha_span = sha_res.span();

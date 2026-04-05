@@ -17,7 +17,7 @@ fn next_power_of_two(n: u32) -> u32 {
     let mut p: u32 = 1;
     while p < n {
         p = p * 2;
-    };
+    }
     p
 }
 
@@ -45,9 +45,9 @@ pub fn build_tree<T, +HashFunction<T>, +Drop<T>>(leaves: Span<felt252>) -> Array
             leaf_layer.append(*leaves.at(i));
         } else {
             leaf_layer.append(0);
-        };
+        }
         i += 1;
-    };
+    }
 
     // Compute levels bottom-up, storing each level
     // all_levels[0] = leaf layer, all_levels[1] = parents of leaves, ..., last = root
@@ -67,11 +67,11 @@ pub fn build_tree<T, +HashFunction<T>, +Drop<T>>(leaves: Span<felt252>) -> Array
             let hash_input = array![left, right];
             parent_level.append(HashFunction::<T>::hash(hash_input.span()));
             k += 1;
-        };
+        }
         all_levels.append(parent_level.clone());
         current_level = parent_level;
         level_size = parent_size;
-    };
+    }
 
     // Reconstruct flat 1-indexed array
     // all_levels: [leaves, parents_of_leaves, ..., root]
@@ -92,7 +92,7 @@ pub fn build_tree<T, +HashFunction<T>, +Drop<T>>(leaves: Span<felt252>) -> Array
             flat.append(*level_span.at(elem_idx));
             elem_idx += 1;
         };
-    };
+    }
 
     flat
 }
@@ -127,7 +127,7 @@ pub fn prove(nodes: Span<felt252>, leaf_count: u32, leaf_index: u32) -> MerklePr
         siblings.append(*nodes.at(sibling_idx));
 
         idx = idx / 2;
-    };
+    }
 
     MerkleProof { siblings, path_bits }
 }
@@ -135,9 +135,7 @@ pub fn prove(nodes: Span<felt252>, leaf_count: u32, leaf_index: u32) -> MerklePr
 /// Verify a Merkle inclusion proof.
 /// Returns true if reconstructing the root from `leaf` and `proof` matches `expected_root`.
 pub fn verify<T, +HashFunction<T>, +Drop<T>>(
-    expected_root: felt252,
-    leaf: felt252,
-    proof: @MerkleProof,
+    expected_root: felt252, leaf: felt252, proof: @MerkleProof,
 ) -> bool {
     let siblings = proof.siblings;
     let path_bits = proof.path_bits;
@@ -166,7 +164,7 @@ pub fn verify<T, +HashFunction<T>, +Drop<T>>(
             };
 
         i += 1;
-    };
+    }
 
     current == expected_root
 }

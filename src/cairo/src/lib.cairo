@@ -1,15 +1,15 @@
 mod constants;
+pub mod hash_trait;
+mod hybrid;
+pub mod lamport;
+pub mod merkle;
 mod poseidon;
 mod sponge;
-mod hybrid;
-pub mod hash_trait;
-pub mod merkle;
-pub mod lamport;
-pub mod wots;
-pub mod zk_pqc_cairo;
-
-#[cfg(test)]
-mod tests;
 
 #[cfg(test)]
 mod test_vectors;
+
+#[cfg(test)]
+mod tests;
+pub mod wots;
+pub mod zk_pqc_cairo;

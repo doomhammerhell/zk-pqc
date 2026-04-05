@@ -19,19 +19,67 @@ fn mix(ref state: Array<felt252>, mds: Span<felt252>) {
     let s5 = *state.at(5);
 
     let mut next_state = ArrayTrait::new();
-    
+
     // Row 0
-    next_state.append(*mds.at(0)*s0 + *mds.at(1)*s1 + *mds.at(2)*s2 + *mds.at(3)*s3 + *mds.at(4)*s4 + *mds.at(5)*s5);
+    next_state
+        .append(
+            *mds.at(0) * s0
+                + *mds.at(1) * s1
+                + *mds.at(2) * s2
+                + *mds.at(3) * s3
+                + *mds.at(4) * s4
+                + *mds.at(5) * s5,
+        );
     // Row 1
-    next_state.append(*mds.at(6)*s0 + *mds.at(7)*s1 + *mds.at(8)*s2 + *mds.at(9)*s3 + *mds.at(10)*s4 + *mds.at(11)*s5);
+    next_state
+        .append(
+            *mds.at(6) * s0
+                + *mds.at(7) * s1
+                + *mds.at(8) * s2
+                + *mds.at(9) * s3
+                + *mds.at(10) * s4
+                + *mds.at(11) * s5,
+        );
     // Row 2
-    next_state.append(*mds.at(12)*s0 + *mds.at(13)*s1 + *mds.at(14)*s2 + *mds.at(15)*s3 + *mds.at(16)*s4 + *mds.at(17)*s5);
+    next_state
+        .append(
+            *mds.at(12) * s0
+                + *mds.at(13) * s1
+                + *mds.at(14) * s2
+                + *mds.at(15) * s3
+                + *mds.at(16) * s4
+                + *mds.at(17) * s5,
+        );
     // Row 3
-    next_state.append(*mds.at(18)*s0 + *mds.at(19)*s1 + *mds.at(20)*s2 + *mds.at(21)*s3 + *mds.at(22)*s4 + *mds.at(23)*s5);
+    next_state
+        .append(
+            *mds.at(18) * s0
+                + *mds.at(19) * s1
+                + *mds.at(20) * s2
+                + *mds.at(21) * s3
+                + *mds.at(22) * s4
+                + *mds.at(23) * s5,
+        );
     // Row 4
-    next_state.append(*mds.at(24)*s0 + *mds.at(25)*s1 + *mds.at(26)*s2 + *mds.at(27)*s3 + *mds.at(28)*s4 + *mds.at(29)*s5);
+    next_state
+        .append(
+            *mds.at(24) * s0
+                + *mds.at(25) * s1
+                + *mds.at(26) * s2
+                + *mds.at(27) * s3
+                + *mds.at(28) * s4
+                + *mds.at(29) * s5,
+        );
     // Row 5
-    next_state.append(*mds.at(30)*s0 + *mds.at(31)*s1 + *mds.at(32)*s2 + *mds.at(33)*s3 + *mds.at(34)*s4 + *mds.at(35)*s5);
+    next_state
+        .append(
+            *mds.at(30) * s0
+                + *mds.at(31) * s1
+                + *mds.at(32) * s2
+                + *mds.at(33) * s3
+                + *mds.at(34) * s4
+                + *mds.at(35) * s5,
+        );
 
     state = next_state;
 }
@@ -51,11 +99,11 @@ pub fn permute(ref state: Array<felt252>) {
             next_state.append(sbox(val));
             ark_idx += 1;
             i += 1;
-        };
+        }
         state = next_state;
         mix(ref state, mds);
         r += 1;
-    };
+    }
 
     // Partial rounds
     r = 0;
@@ -71,11 +119,11 @@ pub fn permute(ref state: Array<felt252>) {
             }
             ark_idx += 1;
             i += 1;
-        };
+        }
         state = next_state;
         mix(ref state, mds);
         r += 1;
-    };
+    }
 
     // Full rounds (second half)
     r = 0;
@@ -87,7 +135,7 @@ pub fn permute(ref state: Array<felt252>) {
             next_state.append(sbox(val));
             ark_idx += 1;
             i += 1;
-        };
+        }
         state = next_state;
         mix(ref state, mds);
         r += 1;

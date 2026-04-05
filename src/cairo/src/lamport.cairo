@@ -38,7 +38,7 @@ pub fn keygen<T, +HashFunction<T>, +Drop<T>>(seed: Span<felt252>) -> LamportKeyP
         while j < seed.len() {
             input_0.append(*seed.at(j));
             j += 1;
-        };
+        }
         input_0.append(0);
         input_0.append(i.into());
         let s0 = HashFunction::<T>::hash(input_0.span());
@@ -51,7 +51,7 @@ pub fn keygen<T, +HashFunction<T>, +Drop<T>>(seed: Span<felt252>) -> LamportKeyP
         while k < seed.len() {
             input_1.append(*seed.at(k));
             k += 1;
-        };
+        }
         input_1.append(1);
         input_1.append(i.into());
         let s1 = HashFunction::<T>::hash(input_1.span());
@@ -59,7 +59,7 @@ pub fn keygen<T, +HashFunction<T>, +Drop<T>>(seed: Span<felt252>) -> LamportKeyP
         public_1.append(HashFunction::<T>::hash(array![s1].span()));
 
         i += 1;
-    };
+    }
 
     LamportKeyPair { secret_0, secret_1, public_0, public_1 }
 }
@@ -79,9 +79,9 @@ pub fn sign(key: @LamportKeyPair, message_bits: Span<felt252>) -> LamportSignatu
             revealed.append(*key.secret_0.at(i));
         } else {
             revealed.append(*key.secret_1.at(i));
-        };
+        }
         i += 1;
-    };
+    }
 
     LamportSignature { revealed }
 }
@@ -120,9 +120,9 @@ pub fn verify<T, +HashFunction<T>, +Drop<T>>(
         };
         if hash_of_revealed != expected {
             valid = false;
-        };
+        }
         i += 1;
-    };
+    }
 
     valid
 }
@@ -141,7 +141,7 @@ pub fn felt_to_bits(value: felt252) -> Array<felt252> {
         let bit = get_bit_u256(val_u256, bit_pos);
         bits.append(bit);
         i += 1;
-    };
+    }
 
     bits
 }
@@ -179,6 +179,6 @@ fn pow2_u128(n: u32) -> u128 {
     while i < n {
         result = result * 2;
         i += 1;
-    };
+    }
     result
 }

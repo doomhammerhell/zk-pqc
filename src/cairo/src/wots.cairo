@@ -71,7 +71,7 @@ pub fn decompose_message(w: u32, message: felt252) -> Array<u32> {
         let nibble: u32 = nibble_u256.low.try_into().unwrap();
         elements.append(nibble);
         i += 1;
-    };
+    }
 
     elements
 }
@@ -84,7 +84,7 @@ pub fn checksum(w: u32, message_elements: Span<u32>) -> Array<u32> {
     while i < message_elements.len() {
         c += (w - 1) - *message_elements.at(i);
         i += 1;
-    };
+    }
 
     let cs_len = checksum_len(w, message_elements.len());
 
@@ -96,7 +96,7 @@ pub fn checksum(w: u32, message_elements: Span<u32>) -> Array<u32> {
         digits.append(remaining % w);
         remaining /= w;
         j += 1;
-    };
+    }
 
     // Reverse to get big-endian order
     let mut reversed: Array<u32> = ArrayTrait::new();
@@ -105,7 +105,7 @@ pub fn checksum(w: u32, message_elements: Span<u32>) -> Array<u32> {
     while k < len {
         reversed.append(*digits.at(len - 1 - k));
         k += 1;
-    };
+    }
 
     reversed
 }
@@ -117,7 +117,7 @@ pub fn chain_hash<T, +HashFunction<T>, +Drop<T>>(value: felt252, iterations: u32
     while i < iterations {
         current = HashFunction::<T>::hash(array![current].span());
         i += 1;
-    };
+    }
     current
 }
 
@@ -137,7 +137,7 @@ pub fn keygen<T, +HashFunction<T>, +Drop<T>>(w: u32, seed: Span<felt252>) -> Wot
         while j < seed.len() {
             input.append(*seed.at(j));
             j += 1;
-        };
+        }
         input.append(i.into());
         let secret = HashFunction::<T>::hash(input.span());
         secret_chains.append(secret);
@@ -147,7 +147,7 @@ pub fn keygen<T, +HashFunction<T>, +Drop<T>>(w: u32, seed: Span<felt252>) -> Wot
         public_chains.append(public);
 
         i += 1;
-    };
+    }
 
     WotsKeyPair { secret_chains, public_chains }
 }
@@ -172,7 +172,7 @@ pub fn sign<T, +HashFunction<T>, +Drop<T>>(
         let val = chain_hash::<T>(*key.secret_chains.at(i), m_i);
         chain_values.append(val);
         i += 1;
-    };
+    }
 
     // Process checksum elements
     let msg_len_val = msg_elements.len();
@@ -182,7 +182,7 @@ pub fn sign<T, +HashFunction<T>, +Drop<T>>(
         let val = chain_hash::<T>(*key.secret_chains.at(msg_len_val + j), c_j);
         chain_values.append(val);
         j += 1;
-    };
+    }
 
     assert(chain_values.len() == total, 'chain count mismatch');
 
@@ -215,9 +215,9 @@ pub fn verify<T, +HashFunction<T>, +Drop<T>>(
         let reconstructed = chain_hash::<T>(*sig.chain_values.at(i), remaining);
         if reconstructed != *pubkey.at(i) {
             valid = false;
-        };
+        }
         i += 1;
-    };
+    }
 
     // Verify checksum chains
     let msg_len_val = msg_elements.len();
@@ -228,9 +228,9 @@ pub fn verify<T, +HashFunction<T>, +Drop<T>>(
         let reconstructed = chain_hash::<T>(*sig.chain_values.at(msg_len_val + j), remaining);
         if reconstructed != *pubkey.at(msg_len_val + j) {
             valid = false;
-        };
+        }
         j += 1;
-    };
+    }
 
     valid
 }
@@ -248,7 +248,7 @@ fn log2_int(n: u32) -> u32 {
     while val > 1 {
         val /= 2;
         result += 1;
-    };
+    }
     result
 }
 
@@ -263,7 +263,7 @@ fn int_log2_floor(n: u32) -> u32 {
     while val > 1 {
         val /= 2;
         result += 1;
-    };
+    }
     result
 }
 
@@ -291,7 +291,7 @@ fn pow2_u128(n: u32) -> u128 {
     while i < n {
         result = result * 2;
         i += 1;
-    };
+    }
     result
 }
 
