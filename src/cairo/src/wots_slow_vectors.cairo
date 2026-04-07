@@ -1,12 +1,15 @@
 /// WOTS+ cross-language test vectors.
 /// These are computationally intensive and run in a dedicated CI step.
+///
+/// Gas limits tuned to actual usage (~23B). Do not raise above 30B
+/// without checking runner memory constraints.
 #[cfg(test)]
 mod wots_slow_vectors {
     use zk_pqc_cairo::hash_trait::PoseidonHash;
     use zk_pqc_cairo::wots::{keygen as wots_keygen, sign as wots_sign, verify as wots_verify};
 
     #[test]
-    #[available_gas(99999999999)]
+    #[available_gas(25000000000)]
     fn slow_vec_wots_001() {
         // w=16, seed=[42], message=999
         let w: u32 = 16;
@@ -24,7 +27,7 @@ mod wots_slow_vectors {
     }
 
     #[test]
-    #[available_gas(99999999999)]
+    #[available_gas(25000000000)]
     fn slow_vec_wots_002() {
         // w=16, seed=[7], message=12345
         let w: u32 = 16;

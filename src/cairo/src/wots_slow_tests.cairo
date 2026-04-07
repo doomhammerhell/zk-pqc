@@ -1,13 +1,17 @@
 /// WOTS+ integration tests that exercise full keygen/sign/verify chains.
 /// These are computationally intensive (66 chains × 15 hash iterations each)
 /// and run in a dedicated CI step.
+///
+/// Gas limits are tuned to actual usage (~35B max) to reduce memory
+/// pressure on CI runners. Do not raise above 40B without checking
+/// runner memory constraints.
 #[cfg(test)]
 mod wots_slow_tests {
     use zk_pqc_cairo::hash_trait::{HashFunction, PoseidonHash};
     use zk_pqc_cairo::wots::{keygen as wots_keygen, sign as wots_sign, verify as wots_verify};
 
     #[test]
-    #[available_gas(99999999999)]
+    #[available_gas(15000000000)]
     fn slow_wots_keygen_chain_integrity() {
         let w: u32 = 16;
         let seed = array![42];
@@ -28,7 +32,7 @@ mod wots_slow_tests {
     }
 
     #[test]
-    #[available_gas(99999999999)]
+    #[available_gas(25000000000)]
     fn slow_wots_sign_verify_roundtrip() {
         let w: u32 = 16;
         let seed = array![123];
@@ -40,7 +44,7 @@ mod wots_slow_tests {
     }
 
     #[test]
-    #[available_gas(99999999999)]
+    #[available_gas(25000000000)]
     fn slow_wots_wrong_message_rejection() {
         let w: u32 = 16;
         let seed = array![7];
@@ -53,7 +57,7 @@ mod wots_slow_tests {
     }
 
     #[test]
-    #[available_gas(99999999999)]
+    #[available_gas(40000000000)]
     fn slow_wots_wrong_key_rejection() {
         let w: u32 = 16;
         let kp_a = wots_keygen::<PoseidonHash>(w, array![1].span());
