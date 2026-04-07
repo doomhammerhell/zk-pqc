@@ -47,7 +47,7 @@ jobs:
   cairo-build-and-test:
     name: Cairo — Build, Lint & Test
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -63,8 +63,23 @@ jobs:
         run: scarb build
         working-directory: ./src/cairo
 
-      - name: Run Tests
-        run: scarb test
+      - name: Run Fast Tests
+        run: scarb test -f test_
+        working-directory: ./src/cairo
+
+  cairo-slow-tests:
+    name: Cairo — WOTS+ Slow Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Scarb
+        uses: software-mansion/setup-scarb@v1
+
+      - name: Run WOTS+ Slow Tests
+        run: scarb test -f slow_
         working-directory: ./src/cairo
 
   test-vector-staleness:

@@ -238,12 +238,10 @@ mod tests {
     // NOTE: Lamport OTS tests have been moved to reference/lamport.cairo
     // Lamport is reference-only; WOTS+ is the production primitive.
 
-    // --- WOTS+ tests ---
+    // --- WOTS+ tests (fast: checksum/params only) ---
+    // Full keygen/sign/verify tests are in wots_slow_tests.cairo
 
-    use zk_pqc_cairo::wots::{
-        checksum, keygen as wots_keygen, message_len, sign as wots_sign, total_chains,
-        verify as wots_verify,
-    };
+    use zk_pqc_cairo::wots::{checksum, message_len, total_chains};
 
     #[test]
     fn test_wots_message_len() {
@@ -333,66 +331,6 @@ mod tests {
             k += 1;
         }
         assert(val == 895, 'mixed cs mismatch');
-    }
-
-    #[test]
-    #[available_gas(99999999999)]
-    fn test_wots_keygen_chain_integrity() {
-        // Verify public = H^(w-1)(secret) for first few chains
-        let w: u32 = 16;
-        let seed = array![42];
-        let kp = wots_keygen::<PoseidonHash>(w, seed.span());
-
-        // Check first 3 chains
-        let mut i: u32 = 0;
-        while i < 3 {
-            let secret = *kp.secret_chains.at(i);
-            let mut current = secret;
-            let mut j: u32 = 0;
-            while j < w - 1 {
-                current = HashFunction::<PoseidonHash>::hash(array![current].span());
-                j += 1;
-            }
-            assert(current == *kp.public_chains.at(i), 'chain integrity fail');
-            i += 1;
-        };
-    }
-
-    #[test]
-    #[available_gas(99999999999)]
-    fn test_wots_sign_verify_roundtrip() {
-        let w: u32 = 16;
-        let seed = array![123];
-        let kp = wots_keygen::<PoseidonHash>(w, seed.span());
-        let message: felt252 = 999;
-        let sig = wots_sign::<PoseidonHash>(w, @kp, message);
-        let valid = wots_verify::<PoseidonHash>(w, kp.public_chains.span(), message, @sig);
-        assert(valid, 'roundtrip verify failed');
-    }
-
-    #[test]
-    #[available_gas(99999999999)]
-    fn test_wots_wrong_message_rejection() {
-        let w: u32 = 16;
-        let seed = array![7];
-        let kp = wots_keygen::<PoseidonHash>(w, seed.span());
-        let msg1: felt252 = 100;
-        let msg2: felt252 = 200;
-        let sig = wots_sign::<PoseidonHash>(w, @kp, msg1);
-        let valid = wots_verify::<PoseidonHash>(w, kp.public_chains.span(), msg2, @sig);
-        assert(!valid, 'wrong msg should fail');
-    }
-
-    #[test]
-    #[available_gas(99999999999)]
-    fn test_wots_wrong_key_rejection() {
-        let w: u32 = 16;
-        let kp_a = wots_keygen::<PoseidonHash>(w, array![1].span());
-        let kp_b = wots_keygen::<PoseidonHash>(w, array![2].span());
-        let message: felt252 = 42;
-        let sig = wots_sign::<PoseidonHash>(w, @kp_a, message);
-        let valid = wots_verify::<PoseidonHash>(w, kp_b.public_chains.span(), message, @sig);
-        assert(!valid, 'wrong key should fail');
     }
 
     // --- Interop divergence test (task 11B.3) ---

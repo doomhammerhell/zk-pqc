@@ -15,5 +15,12 @@ mod test_vectors;
 
 #[cfg(test)]
 mod tests;
+
 pub mod wots;
+
+#[cfg(test)]
+mod wots_slow_tests;
+
+#[cfg(test)]
+mod wots_slow_vectors;
 pub mod zk_pqc_cairo;
