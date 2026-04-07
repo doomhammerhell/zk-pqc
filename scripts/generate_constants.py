@@ -2,6 +2,11 @@
 """
 Deterministic Constants Generator for Poseidon t=6, RF=8, RP=83 over Stark252.
 
+WARNING: Project-specific Poseidon constants.
+These constants are generated via Cauchy MDS + SHA-256 CSPRNG and are NOT compatible
+with Starknet's native poseidon() syscall which uses Grain LFSR.
+See docs/POSEIDON_CONSTANTS.md for the full rationale.
+
 Generates:
   - 6x6 MDS matrix via Cauchy matrix construction
   - 546 round constants via SHA-256 based CSPRNG

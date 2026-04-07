@@ -7,9 +7,6 @@
 #[cfg(test)]
 mod test_vectors {
     use zk_pqc_cairo::hash_trait::{HashFunction, HybridHashWrapper, PoseidonHash};
-    use zk_pqc_cairo::lamport::{
-        felt_to_bits, keygen as lamport_keygen, sign as lamport_sign, verify as lamport_verify,
-    };
     use zk_pqc_cairo::merkle::{build_tree, prove, root, verify};
     use zk_pqc_cairo::sponge::{hash as sponge_hash, hash_with_ds as sponge_hash_with_ds};
     use zk_pqc_cairo::wots::{keygen as wots_keygen, sign as wots_sign, verify as wots_verify};
@@ -116,7 +113,7 @@ mod test_vectors {
         let result = HashFunction::<
             HybridHashWrapper,
         >::hash_with_domain_separation(5, input.span());
-        let expected: felt252 = 0x024040444b5ef483e9fdce7e64882519670c0683565e47f3745eca8cd154b773;
+        let expected: felt252 = 0x02aac0d263b651982dfa3df91770c90ca188afd4690eb5ae18f288d4cbbf9ae5;
         assert(result == expected, 'hybrid_003 mismatch');
     }
 
@@ -171,58 +168,11 @@ mod test_vectors {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Lamport OTS Vectors (from spec/test_vectors/lamport_ots.json)
+    // Lamport OTS Vectors — REMOVED
+    // Lamport is reference-only (see reference/lamport.cairo).
+    // Cross-language Lamport vectors remain in spec/test_vectors/lamport_ots.json
+    // for historical reference but are no longer validated in the production test suite.
     // ═══════════════════════════════════════════════════════════════
-
-    #[test]
-    #[available_gas(99999999999)]
-    fn test_vec_lamport_001() {
-        // seed=[42], message=999
-        let seed = array![42];
-        let kp = lamport_keygen::<PoseidonHash>(seed.span());
-
-        // Verify first public key entry matches Rust vector
-        let expected_pub0_0: felt252 =
-            0x035df0ee764de4c6ce15a49288c902257f5db329d136b67eedee9ad3cb04356f;
-        assert(*kp.public_0.at(0) == expected_pub0_0, 'lam_001 pub0[0] mismatch');
-
-        let expected_pub1_0: felt252 =
-            0x041c1c92d286221a5543f1f4d8601d763b4e21b4b45693c5b28ef4f9b9b6ff69;
-        assert(*kp.public_1.at(0) == expected_pub1_0, 'lam_001 pub1[0] mismatch');
-
-        // Sign and verify
-        let bits = felt_to_bits(999);
-        let sig = lamport_sign(@kp, bits.span());
-        let valid = lamport_verify::<
-            PoseidonHash,
-        >(kp.public_0.span(), kp.public_1.span(), bits.span(), @sig);
-        assert(valid, 'lam_001 verify failed');
-    }
-
-    #[test]
-    #[available_gas(99999999999)]
-    fn test_vec_lamport_002() {
-        // seed=[123], message=1
-        let seed = array![123];
-        let kp = lamport_keygen::<PoseidonHash>(seed.span());
-
-        // Verify first public key entry matches Rust vector
-        let expected_pub0_0: felt252 =
-            0x0228fe87c4daaedf979f018298bb902dfa503d5f5b3652c231a8a182a4a96f1d;
-        assert(*kp.public_0.at(0) == expected_pub0_0, 'lam_002 pub0[0] mismatch');
-
-        let expected_pub1_0: felt252 =
-            0x030460270c0ba249e42644f0f401789e34e2c7058575bf507146a3718d3920a9;
-        assert(*kp.public_1.at(0) == expected_pub1_0, 'lam_002 pub1[0] mismatch');
-
-        // Sign and verify
-        let bits = felt_to_bits(1);
-        let sig = lamport_sign(@kp, bits.span());
-        let valid = lamport_verify::<
-            PoseidonHash,
-        >(kp.public_0.span(), kp.public_1.span(), bits.span(), @sig);
-        assert(valid, 'lam_002 verify failed');
-    }
 
     // ═══════════════════════════════════════════════════════════════
     // WOTS+ Vectors (from spec/test_vectors/wots_plus.json)

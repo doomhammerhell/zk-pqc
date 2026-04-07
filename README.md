@@ -23,6 +23,7 @@ flowchart LR
 ## Key Technical Features
 
 - **128-bit Post-Quantum Security**: Hardened Poseidon ($\mathbf{R_P=83}$) to mitigate Grover search and algebraic attacks.
+- **WOTS+ as Production Primitive**: WOTS+ with checksum is the sole production signature scheme. Lamport OTS is retained as a reference-only implementation (see `examples/` and `reference/`) due to its inferior key size (2×256 vs 66 field elements) and higher gas cost.
 - **STARK Recursion Aggregator**: Folds $N$ individual authorization proofs into a single master batch proof **$\Pi_{Batch}$**, collapsing on-chain costs to $O(1)$.
 - **Multi-Lane Mempools**: Segregates high-frequency (Poseidon-Only) and institutional (Hybrid-Hash) transactions to ensure throughput stability.
 - **Jellyfish Merkle Trees (JMT)**: Optimized SMT depth to maintain $O(1)$ state storage with reconstruction guaranteed via **uint64 DA State Diffs**.

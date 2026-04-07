@@ -1,3 +1,12 @@
+// Lamport OTS — Reference Implementation (NOT production API)
+//
+// Lamport One-Time Signatures are included as a reference and educational
+// implementation only. For production use, prefer WOTS+ which provides
+// equivalent security with significantly smaller key and signature sizes
+// and lower gas cost.
+//
+// **Rationale for demotion**: ~25B gas, 2×256 key size, strictly inferior to WOTS+.
+
 use zk_pqc_cairo::hash_trait::HashFunction;
 
 /// Number of bits in a Lamport signature.

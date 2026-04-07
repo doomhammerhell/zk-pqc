@@ -235,95 +235,8 @@ mod tests {
         assert(!valid, 'tampered sib should fail');
     }
 
-    // --- Lamport OTS tests ---
-    // Note: Full 256-bit Lamport keygen is expensive in Cairo (512 Poseidon hashes).
-    // Tests validate the core logic by checking a subset of positions.
-
-    use zk_pqc_cairo::lamport::{
-        felt_to_bits, keygen as lamport_keygen, sign as lamport_sign, verify as lamport_verify,
-    };
-
-    #[test]
-    #[available_gas(99999999999)]
-    fn test_lamport_keygen_integrity() {
-        let seed = array![42];
-        let kp = lamport_keygen::<PoseidonHash>(seed.span());
-
-        // Verify public_0[i] = H(secret_0[i]) and public_1[i] = H(secret_1[i])
-        // Check first 4 positions to keep test fast
-        let mut i: u32 = 0;
-        while i < 4 {
-            let h0 = HashFunction::<PoseidonHash>::hash(array![*kp.secret_0.at(i)].span());
-            assert(h0 == *kp.public_0.at(i), 'pub0 mismatch');
-            let h1 = HashFunction::<PoseidonHash>::hash(array![*kp.secret_1.at(i)].span());
-            assert(h1 == *kp.public_1.at(i), 'pub1 mismatch');
-            i += 1;
-        };
-    }
-
-    #[test]
-    #[available_gas(99999999999)]
-    fn test_lamport_sign_verify_roundtrip() {
-        let seed = array![123];
-        let kp = lamport_keygen::<PoseidonHash>(seed.span());
-        let bits = felt_to_bits(999);
-        let sig = lamport_sign(@kp, bits.span());
-        let valid = lamport_verify::<
-            PoseidonHash,
-        >(kp.public_0.span(), kp.public_1.span(), bits.span(), @sig);
-        assert(valid, 'roundtrip verify failed');
-    }
-
-    #[test]
-    #[available_gas(99999999999)]
-    fn test_lamport_wrong_key_rejection() {
-        let kp_a = lamport_keygen::<PoseidonHash>(array![1].span());
-        let kp_b = lamport_keygen::<PoseidonHash>(array![2].span());
-        let bits = felt_to_bits(42);
-        let sig = lamport_sign(@kp_a, bits.span());
-        let valid = lamport_verify::<
-            PoseidonHash,
-        >(kp_b.public_0.span(), kp_b.public_1.span(), bits.span(), @sig);
-        assert(!valid, 'wrong key should fail');
-    }
-
-    #[test]
-    #[available_gas(99999999999)]
-    fn test_lamport_wrong_message_rejection() {
-        let kp = lamport_keygen::<PoseidonHash>(array![7].span());
-        let bits1 = felt_to_bits(100);
-        let bits2 = felt_to_bits(200);
-        let sig = lamport_sign(@kp, bits1.span());
-        let valid = lamport_verify::<
-            PoseidonHash,
-        >(kp.public_0.span(), kp.public_1.span(), bits2.span(), @sig);
-        assert(!valid, 'wrong msg should fail');
-    }
-
-    #[test]
-    fn test_felt_to_bits_zero() {
-        let bits = felt_to_bits(0);
-        assert(bits.len() == 256, 'should be 256 bits');
-        let mut i: u32 = 0;
-        while i < bits.len() {
-            assert(*bits.at(i) == 0, 'zero should have all 0 bits');
-            i += 1;
-        };
-    }
-
-    #[test]
-    fn test_felt_to_bits_one() {
-        let bits = felt_to_bits(1);
-        assert(bits.len() == 256, 'should be 256 bits');
-        // Last bit should be 1
-        assert(*bits.at(255) == 1, 'last bit should be 1');
-        // All others should be 0
-        let mut i: u32 = 0;
-        while i < 255 {
-            assert(*bits.at(i) == 0, 'other bits should be 0');
-            i += 1;
-        };
-    }
+    // NOTE: Lamport OTS tests have been moved to reference/lamport.cairo
+    // Lamport is reference-only; WOTS+ is the production primitive.
 
     // --- WOTS+ tests ---
 
@@ -480,5 +393,24 @@ mod tests {
         let sig = wots_sign::<PoseidonHash>(w, @kp_a, message);
         let valid = wots_verify::<PoseidonHash>(w, kp_b.public_chains.span(), message, @sig);
         assert(!valid, 'wrong key should fail');
+    }
+
+    // --- Interop divergence test (task 11B.3) ---
+    // Verifies that our project-specific Poseidon (t=6, Cauchy MDS, SHA-256 CSPRNG)
+    // produces a DIFFERENT output than Starknet's native Poseidon (t=3, Grain LFSR).
+    // See docs/POSEIDON_CONSTANTS.md for the full rationale.
+
+    #[test]
+    fn test_poseidon_diverges_from_starknet_known_output() {
+        let input = array![1, 2, 3];
+        let our_output = HashFunction::<PoseidonHash>::hash(input.span());
+
+        // Known Starknet-native Poseidon output for poseidon_hash_span([1, 2, 3]).
+        // Source: starknet-crypto crate (t=3, Grain LFSR constants).
+        let starknet_known: felt252 =
+            0x2f0d8840bcf3bc629598d8a6cc80cb7c0d9e52d93dab244bbf9cd0dca0ad71d;
+
+        assert(our_output != starknet_known, 'MUST differ from Starknet');
+        assert(our_output != 0, 'hash should not be zero');
     }
 }

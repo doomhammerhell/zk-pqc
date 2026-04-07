@@ -3,6 +3,11 @@ use lambdaworks_math::field::fields::fft_friendly::stark_252_prime_field::Stark2
 
 pub type FELT = FieldElement<Stark252PrimeField>;
 
+// WARNING: Project-specific Poseidon constants.
+// These constants are generated via Cauchy MDS + SHA-256 CSPRNG and are NOT compatible
+// with Starknet's native poseidon() syscall which uses Grain LFSR.
+// See docs/POSEIDON_CONSTANTS.md for the full rationale.
+
 // Seed-based constants generation for auditable security
 // For t=6, Rf=8, Rp=83
 pub const T: usize = 6;

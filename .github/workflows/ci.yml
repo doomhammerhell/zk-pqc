@@ -2,9 +2,9 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['main']
   pull_request:
-    branches: [ "main" ]
+    branches: ['main']
 
 env:
   CARGO_TERM_COLOR: always
@@ -57,3 +57,12 @@ jobs:
       - name: Run Tests (Cairo)
         run: scarb test
         working-directory: ./src/cairo
+
+      - name: Check Test Vector Staleness
+        run: |
+          cd src/rust && cargo run -p zk_pqc_test_vectors --release && cd ../..
+          npx prettier --write spec/test_vectors/*.json
+          git diff --exit-code spec/test_vectors/ || {
+            echo "::error::Test vectors are stale! Regenerate with: cd src/rust && cargo run -p zk_pqc_test_vectors && cd ../.. && npx prettier --write spec/test_vectors/*.json"
+            exit 1
+          }

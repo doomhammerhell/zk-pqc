@@ -20,6 +20,7 @@ impl HybridHash {
 
         // 3. Convert SHA-256 (32 bytes) to FELT (truncated to ~251 bits)
         // To ensure it fits in the field, we zero the first byte (MSB)
+        // MSB byte zeroed → 248 bits effective → 124-bit collision resistance
         let mut padded_sha = [0u8; 32];
         padded_sha[1..32].copy_from_slice(&sha_result[1..32]);
 

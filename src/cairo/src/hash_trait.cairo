@@ -54,22 +54,33 @@ pub impl Sha256HashImpl of HashFunction<Sha256Hash> {
 }
 
 /// Hybrid-Hash implementation (Poseidon ⊕ truncated SHA-256).
+///
+/// SHA-256 truncation security impact: MSB byte zeroed → 248 bits effective
+/// → 124-bit collision resistance.
 pub impl HybridHashWrapperImpl of HashFunction<HybridHashWrapper> {
     fn hash(input: Span<felt252>) -> felt252 {
         hybrid_hash_fn(input)
     }
 
     fn hash_with_domain_separation(ds: felt252, input: Span<felt252>) -> felt252 {
-        // Use Poseidon with DS for the Poseidon component,
-        // keep SHA-256 the same (no DS for SHA component).
+        // Both components MUST respect domain separation to prevent
+        // cross-context collisions.
         let p_hash = poseidon_hash_with_ds_fn(ds, input);
-        let sha_felt = sha256_felts(input);
+        // SHA-256 component: hash(ds || input) so DS affects the digest
+        let mut combined = array![ds];
+        let mut i: usize = 0;
+        while i < input.len() {
+            combined.append(*input.at(i));
+            i += 1;
+        }
+        let sha_felt = sha256_felts(combined.span());
         p_hash + sha_felt
     }
 }
 
 /// Helper: compute SHA-256 over felt252 elements and return truncated felt252.
 /// Uses the same truncation as Rust: zero the MSB of the 32-byte BE output.
+/// MSB byte zeroed → 248 bits effective → 124-bit collision resistance.
 fn sha256_felts(input: Span<felt252>) -> felt252 {
     let mut ba: ByteArray = Default::default();
     let mut i: usize = 0;

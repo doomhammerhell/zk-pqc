@@ -1,35 +1,42 @@
-//! PCA (Proof-Carrying Authorization) — end-to-end flow.
+//! PCA (Proof-Carrying Authorization) — end-to-end flow with real STARK proofs.
 //!
 //! Implements the off-chain side of the PCA model:
 //! 1. Generate a WOTS+ key pair
 //! 2. Sign a message
-//! 3. Generate a STARK proof (commitment-based, matching the Cairo verifier)
-//! 4. The proof can be submitted to the Cairo contract for on-chain verification
+//! 3. Generate a real STARK proof via lambdaworks (WOTS+ verification trace)
+//! 4. The proof can be verified off-chain or submitted to the Cairo contract
 //!
-//! The proof layout matches the Cairo `verify_stark_proof` function:
-//!   proof[0] = message_hash
-//!   proof[1] = commitment_root
-//!   proof[2..n-1] = STARK proof data (WOTS+ verification trace digest)
-//!   proof[n-1] = verification tag = H(message_hash || commitment_root || proof_data)
+//! **The proof is now unforgeable without the secret key.**
 //!
-//! Requirements: 12.1, 12.2, 12.3
+//! Requirements: 10.2, 10.3, 10.4, 12.1, 12.2, 12.3
 
+use stark_platinum_prover::proof::{options::ProofOptions, stark::StarkProof};
 use zk_pqc_hash_layer::constants::FELT;
 use zk_pqc_hash_layer::sponge::PoseidonSponge;
 use zk_pqc_hash_layer::traits::PoseidonHash;
-use zk_pqc_signature_layer::{WotsKeyPair, WotsParams, WotsPlus, WotsSignature};
+use zk_pqc_signature_layer::{WotsKeyPair, WotsParams, WotsPlus};
 
-/// Result of the off-chain PCA proof generation.
-#[derive(Debug, Clone)]
+use crate::wots_air::WotsPublicInputs;
+use crate::wots_prover::{default_proof_options, prove_wots_verification, WotsStarkProofResult};
+use crate::wots_verifier::verify_stark_proof_real;
+use stark_platinum_prover::PrimeField;
+
+/// Result of the off-chain PCA proof generation backed by a real STARK proof.
 pub struct PcaProof {
-    /// The full proof vector matching the Cairo contract's expected layout.
-    pub proof: Vec<FELT>,
+    /// The real STARK proof for WOTS+ signature verification.
+    pub stark_proof: StarkProof<PrimeField, PrimeField>,
+    /// Public inputs used during proof generation (needed for verification).
+    pub pub_inputs: WotsPublicInputs,
+    /// Proof options used during proof generation (needed for verification).
+    pub proof_options: ProofOptions,
     /// The canonical message hash bound into the proof.
     pub message_hash: FELT,
     /// The WOTS+ public key commitment root bound into the proof.
     pub commitment_root: FELT,
     /// The OTS index used.
     pub index: u64,
+    /// Time taken to generate the proof in milliseconds.
+    pub generation_time_ms: u128,
 }
 
 /// Generate a WOTS+ key pair using Poseidon hashing.
@@ -44,26 +51,37 @@ pub fn commitment_root(pubkey: &[FELT]) -> FELT {
     PoseidonSponge::hash(pubkey)
 }
 
-/// Sign a message with WOTS+ and generate a PCA proof.
+/// Sign a message with WOTS+ and generate a real STARK PCA proof.
 ///
 /// This performs the full off-chain flow:
 /// 1. Sign the message with WOTS+
-/// 2. Verify the signature off-chain (the computation whose trace would be STARKed)
-/// 3. Build a proof that the Cairo contract can verify
+/// 2. Verify the signature off-chain (producing the execution trace)
+/// 3. Generate a real STARK proof from the trace via lambdaworks
 ///
-/// Returns `None` if signing or off-chain verification fails.
+/// Returns `None` if signing, off-chain verification, or proof generation fails.
 pub fn generate_pca_proof(
     params: &WotsParams,
     keypair: &WotsKeyPair,
     message: &FELT,
     index: u64,
 ) -> Option<PcaProof> {
+    generate_pca_proof_with_options(params, keypair, message, index, &default_proof_options())
+}
+
+/// Sign a message with WOTS+ and generate a real STARK PCA proof with custom proof options.
+pub fn generate_pca_proof_with_options(
+    params: &WotsParams,
+    keypair: &WotsKeyPair,
+    message: &FELT,
+    index: u64,
+    proof_options: &ProofOptions,
+) -> Option<PcaProof> {
     let hasher = PoseidonHash;
 
     // Step 1: Sign the message
     let signature = WotsPlus::sign(&hasher, params, keypair, &[*message]).ok()?;
 
-    // Step 2: Verify off-chain (this is the computation that would produce a STARK trace)
+    // Step 2: Verify off-chain (this is the computation whose trace is STARKed)
     let valid = WotsPlus::verify(
         &hasher,
         params,
@@ -75,85 +93,77 @@ pub fn generate_pca_proof(
         return None;
     }
 
-    // Step 3: Build the proof for the Cairo contract
+    // Step 3: Generate real STARK proof
+    let WotsStarkProofResult {
+        proof,
+        pub_inputs,
+        proof_options: used_options,
+        generation_time_ms,
+    } = prove_wots_verification(
+        params,
+        &signature.chain_values,
+        message,
+        &keypair.public_chains,
+        proof_options,
+    )?;
+
     let message_hash = PoseidonSponge::hash(&[*message]);
     let root = commitment_root(&keypair.public_chains);
 
-    // Proof data: digest of the WOTS+ signature verification trace.
-    // In a full STARK system this would be the actual proof bytes;
-    // here we produce a commitment that the Cairo verifier can check.
-    let proof_data = build_proof_data(&signature, message, &root);
-
-    // Verification tag: H(message_hash || commitment_root || proof_data...)
-    // This must match the Cairo `verify_stark_proof` logic exactly.
-    let tag = compute_verification_tag(message_hash, root, &proof_data);
-
-    // Assemble: [message_hash, root, proof_data..., tag]
-    let mut proof = Vec::with_capacity(3 + proof_data.len());
-    proof.push(message_hash);
-    proof.push(root);
-    proof.extend_from_slice(&proof_data);
-    proof.push(tag);
-
     Some(PcaProof {
-        proof,
+        stark_proof: proof,
+        pub_inputs,
+        proof_options: used_options,
         message_hash,
         commitment_root: root,
         index,
+        generation_time_ms,
     })
 }
 
-/// Build proof data from the WOTS+ signature verification.
-/// This is a compact digest of the off-chain verification computation.
-fn build_proof_data(signature: &WotsSignature, message: &FELT, root: &FELT) -> Vec<FELT> {
-    // Hash the signature chain values as a compact representation of the trace
-    let sig_digest = PoseidonSponge::hash(&signature.chain_values);
-    // Include the message and root binding in the proof data
-    let binding = PoseidonSponge::hash(&[*message, *root, sig_digest]);
-    vec![sig_digest, binding]
-}
-
-/// Compute the verification tag matching the Cairo contract's `verify_stark_proof`.
+/// Verify a PCA proof off-chain using the real STARK verifier.
 ///
-/// tag = H(message_hash || commitment_root || proof_data[0] || proof_data[1] || ...)
-fn compute_verification_tag(
-    message_hash: FELT,
-    commitment_root: FELT,
-    proof_data: &[FELT],
-) -> FELT {
-    let mut input = Vec::with_capacity(2 + proof_data.len());
-    input.push(message_hash);
-    input.push(commitment_root);
-    input.extend_from_slice(proof_data);
-    PoseidonSponge::hash(&input)
+/// Checks:
+/// 1. The STARK proof is valid for the embedded public inputs
+/// 2. The message_hash and commitment_root in the proof match the public inputs
+pub fn verify_pca_proof(pca_proof: &PcaProof) -> bool {
+    // Verify the message_hash and commitment_root are bound into the public inputs
+    if pca_proof.pub_inputs.message_hash
+        != crate::wots_air::local_felt_to_stark(&pca_proof.message_hash)
+    {
+        return false;
+    }
+    if pca_proof.pub_inputs.commitment_root
+        != crate::wots_air::local_felt_to_stark(&pca_proof.commitment_root)
+    {
+        return false;
+    }
+
+    // Verify the real STARK proof
+    verify_stark_proof_real(
+        &pca_proof.stark_proof,
+        &pca_proof.pub_inputs,
+        &pca_proof.proof_options,
+    )
 }
 
-/// Verify a PCA proof off-chain (mirrors the Cairo contract logic).
-/// Useful for testing before submitting to the contract.
-pub fn verify_pca_proof_offchain(pca_proof: &PcaProof) -> bool {
-    let proof = &pca_proof.proof;
-    if proof.len() < 3 {
+/// Verify a PCA proof against specific expected message and root.
+///
+/// This is the function that mirrors on-chain verification: the caller
+/// provides the expected message_hash and commitment_root, and the proof
+/// must match both AND pass STARK verification.
+pub fn verify_pca_proof_bound(
+    pca_proof: &PcaProof,
+    expected_message_hash: &FELT,
+    expected_commitment_root: &FELT,
+) -> bool {
+    // Check that the proof is bound to the expected message and root
+    if pca_proof.message_hash != *expected_message_hash {
         return false;
     }
-    if pca_proof.message_hash == FELT::zero() || pca_proof.commitment_root == FELT::zero() {
+    if pca_proof.commitment_root != *expected_commitment_root {
         return false;
     }
 
-    let proof_message = proof[0];
-    let proof_root = proof[1];
-
-    if proof_message != pca_proof.message_hash || proof_root != pca_proof.commitment_root {
-        return false;
-    }
-
-    // Recompute the tag
-    let proof_data = &proof[2..proof.len() - 1];
-    let expected_tag = compute_verification_tag(
-        pca_proof.message_hash,
-        pca_proof.commitment_root,
-        proof_data,
-    );
-    let actual_tag = proof[proof.len() - 1];
-
-    expected_tag == actual_tag
+    verify_pca_proof(pca_proof)
 }

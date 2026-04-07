@@ -42,6 +42,7 @@ impl Sha256Hash {
         let sha_result = hasher.finalize();
 
         // Truncate to fit in Stark252 field (zero the MSB, same approach as hybrid.rs)
+        // MSB byte zeroed → 248 bits effective → 124-bit collision resistance
         let mut padded = [0u8; 32];
         padded[1..32].copy_from_slice(&sha_result[1..32]);
         FELT::from_bytes_be(&padded).unwrap()
@@ -65,6 +66,9 @@ impl HashFunction for Sha256Hash {
 }
 
 /// Hybrid-Hash: Poseidon ⊕ truncated SHA-256.
+///
+/// SHA-256 truncation security impact: MSB byte zeroed → 248 bits effective
+/// → 124-bit collision resistance.
 pub struct HybridHashWrapper;
 
 impl HashFunction for HybridHashWrapper {
@@ -75,18 +79,20 @@ impl HashFunction for HybridHashWrapper {
     }
 
     fn hash_with_domain_separation(&self, ds: FELT, input: &[FELT]) -> FELT {
-        // The existing HybridHash::hash doesn't support domain separation.
-        // Use PoseidonSponge::hash_with_ds for the Poseidon component
-        // and keep SHA-256 the same (as specified in the task).
+        // Both components MUST respect domain separation to prevent
+        // cross-context collisions. Previously the SHA-256 component
+        // ignored the DS tag — a real cryptographic bug.
         let poseidon_hash = PoseidonSponge::hash_with_ds(ds, input);
 
-        // SHA-256 component (same as HybridHash::hash)
+        // SHA-256 component: hash(ds || input) so DS affects the digest
         let mut hasher = Sha256::new();
+        hasher.update(ds.to_bytes_be());
         for val in input {
             hasher.update(val.to_bytes_be());
         }
         let sha_result = hasher.finalize();
 
+        // MSB byte zeroed → 248 bits effective → 124-bit collision resistance
         let mut padded_sha = [0u8; 32];
         padded_sha[1..32].copy_from_slice(&sha_result[1..32]);
         let sha_felt = FELT::from_bytes_be(&padded_sha).unwrap();

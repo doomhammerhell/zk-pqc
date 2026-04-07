@@ -17,8 +17,98 @@ mod tests {
     use zk_pqc_hash_layer::sponge::PoseidonSponge;
     use zk_pqc_hash_layer::traits::{HashFunction, PoseidonHash};
     use zk_pqc_merkle_layer::MerkleTree;
-    use zk_pqc_signature_layer::lamport::{felt_to_bits, LamportOTS};
     use zk_pqc_signature_layer::wots::{WotsParams, WotsPlus};
+
+    // Lamport OTS is reference-only (not part of production signature_layer API).
+    // We inline the minimal types needed for cross-language property tests.
+    mod lamport_ref {
+        use zk_pqc_hash_layer::constants::FELT;
+        use zk_pqc_hash_layer::traits::HashFunction;
+
+        pub const LAMPORT_BITS: usize = 256;
+
+        #[derive(Debug, Clone)]
+        pub struct LamportKeyPair {
+            pub secret: [[FELT; LAMPORT_BITS]; 2],
+            pub public: [[FELT; LAMPORT_BITS]; 2],
+        }
+
+        #[derive(Debug, Clone)]
+        pub struct LamportSignature {
+            pub revealed: [FELT; LAMPORT_BITS],
+        }
+
+        pub struct LamportOTS;
+
+        impl LamportOTS {
+            pub fn keygen<H: HashFunction<Digest = FELT>>(
+                hasher: &H,
+                seed: &[FELT],
+            ) -> LamportKeyPair {
+                let mut secret = [[FELT::from(0); LAMPORT_BITS]; 2];
+                let mut public = [[FELT::from(0); LAMPORT_BITS]; 2];
+                for b in 0..2u64 {
+                    for (i, secret_i) in
+                        secret[b as usize].iter_mut().enumerate().take(LAMPORT_BITS)
+                    {
+                        let mut input = seed.to_vec();
+                        input.push(FELT::from(b));
+                        input.push(FELT::from(i as u64));
+                        *secret_i = hasher.hash(&input);
+                    }
+                }
+                for b in 0..2usize {
+                    for i in 0..LAMPORT_BITS {
+                        public[b][i] = hasher.hash(&[secret[b][i]]);
+                    }
+                }
+                LamportKeyPair { secret, public }
+            }
+
+            pub fn sign(key: &LamportKeyPair, message_bits: &[bool]) -> LamportSignature {
+                assert_eq!(message_bits.len(), LAMPORT_BITS);
+                let mut revealed = [FELT::from(0); LAMPORT_BITS];
+                for (i, &msg_bit) in message_bits.iter().enumerate() {
+                    let b = if msg_bit { 1 } else { 0 };
+                    revealed[i] = key.secret[b][i];
+                }
+                LamportSignature { revealed }
+            }
+
+            pub fn verify<H: HashFunction<Digest = FELT>>(
+                hasher: &H,
+                pubkey: &[[FELT; LAMPORT_BITS]; 2],
+                message_bits: &[bool],
+                sig: &LamportSignature,
+            ) -> bool {
+                if message_bits.len() != LAMPORT_BITS {
+                    return false;
+                }
+                for i in 0..LAMPORT_BITS {
+                    let b = if message_bits[i] { 1 } else { 0 };
+                    if hasher.hash(&[sig.revealed[i]]) != pubkey[b][i] {
+                        return false;
+                    }
+                }
+                true
+            }
+        }
+
+        pub fn felt_to_bits(felt: &FELT) -> [bool; LAMPORT_BITS] {
+            #[allow(unused_imports)]
+            use lambdaworks_math::traits::ByteConversion;
+            let bytes = felt.to_bytes_be();
+            let mut bits = [false; LAMPORT_BITS];
+            for (byte_idx, byte) in bytes.iter().enumerate() {
+                for bit_idx in 0..8 {
+                    bits[byte_idx * 8 + bit_idx] = (byte >> (7 - bit_idx)) & 1 == 1;
+                }
+            }
+            bits
+        }
+    }
+
+    use lamport_ref::{felt_to_bits, LamportOTS};
 
     /// Strategy to generate a random FELT from a u64 value.
     fn arb_felt() -> impl Strategy<Value = FELT> {
@@ -166,7 +256,7 @@ mod tests {
             // Sign-verify round-trip
             let msg_felt = FELT::from(seed_val.wrapping_mul(7));
             let msg_bits = felt_to_bits(&msg_felt);
-            let sig = LamportOTS::sign(&kp1, &msg_bits).unwrap();
+            let sig = LamportOTS::sign(&kp1, &msg_bits);
             let valid = LamportOTS::verify(&hasher, &kp1.public, &msg_bits, &sig);
             prop_assert!(valid, "Lamport sign-verify round-trip failed");
         }

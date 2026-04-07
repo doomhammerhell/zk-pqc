@@ -1,3 +1,8 @@
+// WARNING: Project-specific Poseidon constants.
+// These constants are generated via Cauchy MDS + SHA-256 CSPRNG and are NOT compatible
+// with Starknet's native poseidon() syscall which uses Grain LFSR.
+// See docs/POSEIDON_CONSTANTS.md for the full rationale.
+
 use core::array::ArrayTrait;
 
 pub fn get_mds_matrix() -> Span<felt252> {

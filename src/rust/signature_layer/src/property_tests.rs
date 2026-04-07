@@ -1,88 +1,13 @@
+// NOTE: Lamport OTS property tests have been moved to examples/lamport_reference.rs
+// Run them with: cargo test --example lamport_reference
+
 use proptest::prelude::*;
 use zk_pqc_hash_layer::constants::FELT;
 use zk_pqc_hash_layer::traits::{HashFunction, PoseidonHash};
 
-use crate::lamport::{felt_to_bits, LamportOTS, LAMPORT_BITS};
 use crate::wots::{WotsParams, WotsPlus};
 
-/// Generate an arbitrary FELT from a random u64 seed.
-fn arb_felt() -> impl Strategy<Value = FELT> {
-    any::<u64>().prop_map(FELT::from)
-}
-
-/// Generate an arbitrary 256-bit message as a bool array.
-fn arb_message_bits() -> impl Strategy<Value = Vec<bool>> {
-    proptest::collection::vec(any::<bool>(), LAMPORT_BITS..=LAMPORT_BITS)
-}
-
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(10))]
-
-    // Feature: zk-pqc-framework, Property 5: Lamport OTS Key Pair Integrity
-    //
-    // For any seed, Lamport keygen shall produce a key pair where for every
-    // bit position i and bit value b, public[b][i] = H(secret[b][i]).
-    // Validates: Requirements 4.1, 4.2
-    #[test]
-    fn prop_lamport_keypair_integrity(seed in arb_felt()) {
-        let hasher = PoseidonHash;
-        let kp = LamportOTS::keygen(&hasher, &[seed]);
-
-        for b in 0..2usize {
-            for i in 0..LAMPORT_BITS {
-                let expected = hasher.hash(&[kp.secret[b][i]]);
-                prop_assert_eq!(kp.public[b][i], expected,
-                    "public[{}][{}] != H(secret[{}][{}])", b, i, b, i);
-            }
-        }
-    }
-
-    // Feature: zk-pqc-framework, Property 6: Lamport OTS Sign-Verify Round-Trip
-    //
-    // For any Lamport key pair and any 256-bit message, signing the message
-    // and verifying the signature against the corresponding public key shall return true.
-    // Validates: Requirements 4.3
-    #[test]
-    fn prop_lamport_sign_verify_roundtrip(
-        seed in arb_felt(),
-        message_bits in arb_message_bits()
-    ) {
-        let hasher = PoseidonHash;
-        let kp = LamportOTS::keygen(&hasher, &[seed]);
-        let sig = LamportOTS::sign(&kp, &message_bits).unwrap();
-        prop_assert!(
-            LamportOTS::verify(&hasher, &kp.public, &message_bits, &sig),
-            "Sign-verify round-trip failed"
-        );
-    }
-
-    // Feature: zk-pqc-framework, Property 7: Lamport OTS Wrong-Key Rejection
-    //
-    // For any two distinct Lamport key pairs A and B, and any message signed
-    // with key A, verifying the signature against key B's public key shall return false.
-    // Validates: Requirements 4.4
-    #[test]
-    fn prop_lamport_wrong_key_rejection(
-        seed_a in arb_felt(),
-        seed_b in arb_felt(),
-        msg_felt in arb_felt()
-    ) {
-        // Ensure distinct seeds
-        prop_assume!(seed_a != seed_b);
-
-        let hasher = PoseidonHash;
-        let kp_a = LamportOTS::keygen(&hasher, &[seed_a]);
-        let kp_b = LamportOTS::keygen(&hasher, &[seed_b]);
-
-        let bits = felt_to_bits(&msg_felt);
-        let sig = LamportOTS::sign(&kp_a, &bits).unwrap();
-
-        prop_assert!(
-            !LamportOTS::verify(&hasher, &kp_b.public, &bits, &sig),
-            "Verification should fail with wrong key"
-        );
-    }
-}
+// ── Fast property tests (10 cases, run in CI by default) ──
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10))]
@@ -170,6 +95,77 @@ proptest! {
         let mut sig = WotsPlus::sign(&hasher, &params, &kp, &[msg]).unwrap();
 
         // Advance one chain value by one additional hash iteration
+        sig.chain_values[chain_idx] = hasher.hash(&[sig.chain_values[chain_idx]]);
+
+        let valid = WotsPlus::verify(&hasher, &params, &kp.public_chains, &[msg], &sig);
+        prop_assert!(!valid,
+            "WOTS+ verification should fail after advancing chain {} by one hash", chain_idx);
+    }
+}
+
+// ── Thorough property tests (100 cases, run with `cargo test -- --ignored`) ──
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    #[test]
+    #[ignore]
+    fn prop_wots_checksum_invariant_thorough(
+        elements in proptest::collection::vec(0..16usize, 63..=63)
+    ) {
+        let w = 16usize;
+        let n = elements.len();
+
+        for &e in &elements {
+            prop_assert!(e < w, "Message element {} not in [0, {})", e, w);
+        }
+
+        let checksum_digits = WotsPlus::checksum(w, &elements);
+
+        for &d in &checksum_digits {
+            prop_assert!(d < w, "Checksum digit {} not in [0, {})", d, w);
+        }
+
+        let msg_sum: usize = elements.iter().sum();
+        let expected_checksum_value = n * (w - 1) - msg_sum;
+
+        let mut reconstructed = 0usize;
+        for &d in &checksum_digits {
+            reconstructed = reconstructed * w + d;
+        }
+        prop_assert_eq!(reconstructed, expected_checksum_value,
+            "Checksum reconstruction mismatch: got {}, expected {}", reconstructed, expected_checksum_value);
+    }
+
+    #[test]
+    #[ignore]
+    fn prop_wots_sign_verify_roundtrip_thorough(
+        seed in any::<u64>().prop_map(FELT::from),
+        msg in any::<u64>().prop_map(FELT::from)
+    ) {
+        let hasher = PoseidonHash;
+        let params = WotsParams::default();
+        let kp = WotsPlus::keygen(&hasher, &params, &[seed]);
+        let sig = WotsPlus::sign(&hasher, &params, &kp, &[msg]).unwrap();
+        let valid = WotsPlus::verify(&hasher, &params, &kp.public_chains, &[msg], &sig);
+        prop_assert!(valid, "WOTS+ sign-verify round-trip failed");
+    }
+
+    #[test]
+    #[ignore]
+    fn prop_wots_forgery_resistance_thorough(
+        seed in any::<u64>().prop_map(FELT::from),
+        msg in any::<u64>().prop_map(FELT::from),
+        chain_idx in 0..66usize
+    ) {
+        let hasher = PoseidonHash;
+        let params = WotsParams::default();
+        let total = WotsPlus::total_chains(&params);
+        let chain_idx = chain_idx % total;
+
+        let kp = WotsPlus::keygen(&hasher, &params, &[seed]);
+        let mut sig = WotsPlus::sign(&hasher, &params, &kp, &[msg]).unwrap();
+
         sig.chain_values[chain_idx] = hasher.hash(&[sig.chain_values[chain_idx]]);
 
         let valid = WotsPlus::verify(&hasher, &params, &kp.public_chains, &[msg], &sig);
