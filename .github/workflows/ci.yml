@@ -78,8 +78,28 @@ jobs:
       - name: Install Scarb
         uses: software-mansion/setup-scarb@v1
 
-      - name: Run WOTS+ Slow Tests
-        run: scarb test -f slow_
+      - name: Run slow_wots_keygen_chain_integrity
+        run: scarb test -f slow_wots_keygen_chain_integrity
+        working-directory: ./src/cairo
+
+      - name: Run slow_wots_sign_verify_roundtrip
+        run: scarb test -f slow_wots_sign_verify_roundtrip
+        working-directory: ./src/cairo
+
+      - name: Run slow_wots_wrong_message_rejection
+        run: scarb test -f slow_wots_wrong_message_rejection
+        working-directory: ./src/cairo
+
+      - name: Run slow_wots_wrong_key_rejection
+        run: scarb test -f slow_wots_wrong_key_rejection
+        working-directory: ./src/cairo
+
+      - name: Run slow_vec_wots_001
+        run: scarb test -f slow_vec_wots_001
+        working-directory: ./src/cairo
+
+      - name: Run slow_vec_wots_002
+        run: scarb test -f slow_vec_wots_002
         working-directory: ./src/cairo
 
   test-vector-staleness:
