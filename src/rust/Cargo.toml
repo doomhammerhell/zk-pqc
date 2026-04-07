@@ -1,7 +1,11 @@
 [workspace]
 members = [
     "core",
-    "hash_layer"
+    "hash_layer",
+    "merkle_layer",
+    "signature_layer",
+    "proof_layer",
+    "test_vectors"
 ]
 resolver = "2"
 

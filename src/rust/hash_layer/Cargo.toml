@@ -1,0 +1,13 @@
+[package]
+name = "zk_pqc_hash_layer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zk_pqc_core = { path = "../core" }
+lambdaworks-math = "0.13.0"
+sha2 = "0.10"
+
+[dev-dependencies]
+proptest = "1.4"
+itertools = "0.12"

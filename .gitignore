@@ -3,11 +3,11 @@ node_modules/
 dist/
 
 # Rust
-/target/
+target/
 Cargo.lock
 
 # Cairo (Scarb)
-/target/
+target/
 Scarb.lock
 
 # Python
@@ -29,6 +29,8 @@ env/
 *.pdf
 *.synctex.gz
 *.toc
+.kiro
+.gitignore
 
 # OS / Editor
 .DS_Store

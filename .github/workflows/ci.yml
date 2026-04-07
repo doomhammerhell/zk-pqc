@@ -2,22 +2,24 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['main']
   pull_request:
-    branches: [ "main" ]
+    branches: ['main']
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-and-test:
-    name: Build & Test
+  rust-build-and-test:
+    name: Rust — Build, Lint & Test
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         rust_toolchain: [stable, nightly]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -31,29 +33,104 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Install Scarb (Cairo)
-        uses: software-mansion/setup-scarb@v1
-
-      - name: Check Formatting (Rust)
+      - name: Check Formatting
         run: cargo fmt --all -- --check
         working-directory: ./src/rust
 
-      - name: Lint (Rust Clippy)
+      - name: Lint (Clippy)
         run: cargo clippy --all-targets --all-features -- -D warnings
         working-directory: ./src/rust
 
-      - name: Run Tests (Rust)
+      - name: Run Tests
         run: cargo test --all-features
         working-directory: ./src/rust
 
-      - name: Check Formatting (Cairo)
+  cairo-build-and-test:
+    name: Cairo — Build, Lint & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Scarb
+        uses: software-mansion/setup-scarb@v1
+
+      - name: Check Formatting
         run: scarb fmt --check
         working-directory: ./src/cairo
 
-      - name: Build (Cairo)
+      - name: Build
         run: scarb build
         working-directory: ./src/cairo
 
-      - name: Run Tests (Cairo)
-        run: scarb test
+      - name: Run Fast Tests
+        run: scarb test -f test_
         working-directory: ./src/cairo
+
+  cairo-slow-tests:
+    name: Cairo — WOTS+ Slow Tests
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Scarb
+        uses: software-mansion/setup-scarb@v1
+
+      - name: Run slow_wots_keygen_chain_integrity
+        run: scarb test -f slow_wots_keygen_chain_integrity
+        working-directory: ./src/cairo
+
+      - name: Run slow_wots_sign_verify_roundtrip
+        run: scarb test -f slow_wots_sign_verify_roundtrip
+        working-directory: ./src/cairo
+
+      - name: Run slow_wots_wrong_message_rejection
+        run: scarb test -f slow_wots_wrong_message_rejection
+        working-directory: ./src/cairo
+
+      - name: Run slow_wots_wrong_key_rejection
+        run: scarb test -f slow_wots_wrong_key_rejection
+        working-directory: ./src/cairo
+
+      - name: Run slow_vec_wots_001
+        run: scarb test -f slow_vec_wots_001
+        working-directory: ./src/cairo
+
+      - name: Run slow_vec_wots_002
+        run: scarb test -f slow_vec_wots_002
+        working-directory: ./src/cairo
+
+  test-vector-staleness:
+    name: Test Vector Staleness Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [rust-build-and-test]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install prettier
+        run: npm install --save-dev prettier
+
+      - name: Check Staleness
+        run: |
+          cd src/rust && cargo run -p zk_pqc_test_vectors --release && cd ../..
+          npx prettier --write spec/test_vectors/*.json
+          git diff --exit-code spec/test_vectors/ || {
+            echo "::error::Test vectors are stale! Regenerate with: cd src/rust && cargo run -p zk_pqc_test_vectors && cd ../.. && npx prettier --write spec/test_vectors/*.json"
+            exit 1
+          }
