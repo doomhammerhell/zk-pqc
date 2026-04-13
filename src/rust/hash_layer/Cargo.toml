@@ -10,4 +10,4 @@ sha2 = "0.10"
 
 [dev-dependencies]
 proptest = "1.4"
-itertools = "0.12"
+itertools = "0.14"
