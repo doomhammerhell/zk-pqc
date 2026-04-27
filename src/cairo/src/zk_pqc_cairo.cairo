@@ -73,6 +73,43 @@ pub trait IPCAVerifier<TState> {
     /// Return the currently authorized sequencer address.
     fn get_sequencer(self: @TState) -> starknet::ContractAddress;
 
+    /// Read the current domain configuration.
+    fn get_domain_config(self: @TState) -> (felt252, felt252, felt252, u64);
+
+    /// Update the domain configuration. Only callable by the owner.
+    fn set_domain_config(
+        ref self: TState, domain: felt252, chain_id: felt252, contract_addr: felt252,
+    );
+
+    /// Verify a single authorization proof with domain separation check.
+    /// Validates chain_id, contract_addr, and nonce before verification.
+    fn verify_authorization_with_domain(
+        self: @TState,
+        proof: Span<felt252>,
+        message_hash: felt252,
+        commitment_root: felt252,
+        index: u64,
+        calldata_hash: felt252,
+        nonce: u64,
+    ) -> bool;
+
+    /// Verify a single authorization proof with SMT index enforcement.
+    ///
+    /// This function:
+    /// 1. Checks that the index has not been consumed
+    /// 2. Verifies the SMT proof showing index is unconsumed
+    /// 3. Verifies the authorization proof
+    ///
+    /// Requirements: 8.1, 8.2, 8.3, 8.4, 8.5
+    fn verify_authorization_with_smt(
+        self: @TState,
+        proof: Span<felt252>,
+        message_hash: felt252,
+        commitment_root: felt252,
+        index: u64,
+        smt_proof_siblings: Span<felt252>,
+    ) -> bool;
+
     /// Update the authorized sequencer. Only callable by the owner.
     fn set_sequencer(ref self: TState, new_sequencer: starknet::ContractAddress);
 }
@@ -92,14 +129,28 @@ mod PCAVerifier {
         smt_root: felt252,
         consumed_indices: Map<u64, bool>,
         batch_count: u64,
+        // Domain separation fields
+        domain: felt252,
+        chain_id: felt252,
+        contract_addr: felt252,
+        current_nonce: u64,
     }
 
     #[constructor]
     fn constructor(
-        ref self: ContractState, owner: ContractAddress, initial_sequencer: ContractAddress,
+        ref self: ContractState,
+        owner: ContractAddress,
+        initial_sequencer: ContractAddress,
+        domain: felt252,
+        chain_id: felt252,
+        contract_addr: felt252,
     ) {
         self.owner.write(owner);
         self.authorized_sequencer.write(initial_sequencer);
+        self.domain.write(domain);
+        self.chain_id.write(chain_id);
+        self.contract_addr.write(contract_addr);
+        self.current_nonce.write(0);
     }
 
     #[event]
@@ -108,6 +159,8 @@ mod PCAVerifier {
         AuthorizationVerified: AuthorizationVerified,
         BatchSubmitted: BatchSubmitted,
         SequencerUpdated: SequencerUpdated,
+        DomainConfigUpdated: DomainConfigUpdated,
+        NonceConsumed: NonceConsumed,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -122,6 +175,21 @@ mod PCAVerifier {
         batch_id: u64,
         new_smt_root: felt252,
         num_indices: u32,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct DomainConfigUpdated {
+        old_domain: felt252,
+        old_chain_id: felt252,
+        old_contract: felt252,
+        new_domain: felt252,
+        new_chain_id: felt252,
+        new_contract: felt252,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct NonceConsumed {
+        nonce: u64,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -246,6 +314,129 @@ mod PCAVerifier {
 
         fn get_sequencer(self: @ContractState) -> ContractAddress {
             self.authorized_sequencer.read()
+        }
+
+        /// Get the current domain configuration.
+        fn get_domain_config(self: @ContractState) -> (felt252, felt252, felt252, u64) {
+            (
+                self.domain.read(),
+                self.chain_id.read(),
+                self.contract_addr.read(),
+                self.current_nonce.read(),
+            )
+        }
+
+        /// Update the domain configuration. Only the owner may call this.
+        fn set_domain_config(
+            ref self: ContractState, domain: felt252, chain_id: felt252, contract_addr: felt252,
+        ) {
+            let caller = get_caller_address();
+            let owner = self.owner.read();
+            assert(caller == owner, 'caller not owner');
+
+            let old_domain = self.domain.read();
+            let old_chain_id = self.chain_id.read();
+            let old_contract = self.contract_addr.read();
+
+            self.domain.write(domain);
+            self.chain_id.write(chain_id);
+            self.contract_addr.write(contract_addr);
+
+            self
+                .emit(
+                    DomainConfigUpdated {
+                        old_domain,
+                        old_chain_id,
+                        old_contract,
+                        new_domain: domain,
+                        new_chain_id: chain_id,
+                        new_contract: contract_addr,
+                    },
+                );
+        }
+
+        /// Verify a single authorization proof with domain separation check.
+        /// Validates domain, chain_id, contract_addr, and nonce before verification.
+        fn verify_authorization_with_domain(
+            self: @ContractState,
+            proof: Span<felt252>,
+            message_hash: felt252,
+            commitment_root: felt252,
+            index: u64,
+            calldata_hash: felt252,
+            nonce: u64,
+        ) -> bool {
+            // Check domain constraints
+            // Note: In production, get contract address from starknet::get_contract_address()
+            // and chain_id from syscall. For testing, use stored values.
+            // This prevents replay across chains and contracts.
+
+            // Check nonce hasn't been consumed (simplified: nonce < current_nonce)
+            if nonce < self.current_nonce.read() {
+                return false;
+            }
+
+            // Reconstruct expected canonical message hash
+            // M_canonical = H(domain || chain_id || contract_addr || nonce || H(calldata))
+            let domain = self.domain.read();
+            let chain_id = self.chain_id.read();
+            let contract_addr = self.contract_addr.read();
+
+            // Compute domain commitment: H("DOMAIN" || domain || chain_id || contract || nonce)
+            let domain_prefix: felt252 = 0x444F4D41494E; // "DOMAIN" in ASCII
+            let nonce_felt: felt252 = nonce.into();
+            let domain_commitment = zk_pqc_cairo::sponge::hash_with_domain_separation(
+                domain_prefix, array![domain, chain_id, contract_addr, nonce_felt].span(),
+            );
+
+            // Compute canonical message hash
+            let canonical_hash = zk_pqc_cairo::sponge::hash_with_domain_separation(
+                domain_commitment, array![calldata_hash, nonce_felt].span(),
+            );
+
+            // Verify message_hash matches canonical hash
+            if message_hash != canonical_hash {
+                return false;
+            }
+
+            // Now verify the proof using standard verification
+            self.verify_authorization(proof, message_hash, commitment_root, index)
+        }
+
+        /// Verify a single authorization proof with SMT index enforcement.
+        ///
+        /// This function:
+        /// 1. Checks that the index has not been consumed
+        /// 2. Verifies the SMT proof showing index is unconsumed
+        /// 3. Verifies the authorization proof
+        ///
+        /// Requirements: 8.1, 8.2, 8.3, 8.4, 8.5
+        fn verify_authorization_with_smt(
+            self: @ContractState,
+            proof: Span<felt252>,
+            message_hash: felt252,
+            commitment_root: felt252,
+            index: u64,
+            smt_proof_siblings: Span<felt252>,
+        ) -> bool {
+            // Check index not already consumed
+            if self.consumed_indices.read(index) {
+                return false;
+            }
+
+            // Build SMT proof
+            let smt_proof = zk_pqc_cairo::smt::SmtProof {
+                siblings: smt_proof_siblings.into(), leaf_value: 0 // Empty leaf = unconsumed
+            };
+
+            // Verify SMT proof shows index is unconsumed
+            let current_root = self.smt_root.read();
+            if !zk_pqc_cairo::smt::verify_unconsumed(current_root, index, @smt_proof) {
+                return false;
+            }
+
+            // Now verify the authorization proof
+            self.verify_authorization(proof, message_hash, commitment_root, index)
         }
 
         /// Update the authorized sequencer. Only the owner may call this.

@@ -1,5 +1,12 @@
 use zk_pqc_cairo::hash_trait::HashFunction;
 
+/// WOTS+ parameters.
+#[derive(Drop, Copy, Clone)]
+pub struct WotsParams {
+    /// Winternitz parameter (default: 16). Must be a power of 2.
+    pub w: u32,
+}
+
 /// WOTS+ key pair.
 /// secret_chains: base chain seeds (one per chain, including checksum chains).
 /// public_chains: fully iterated chain endpoints: public_chains[i] = H^(w-1)(secret_chains[i]).

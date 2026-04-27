@@ -1,6 +1,15 @@
 use zk_pqc_hash_layer::constants::FELT;
 use zk_pqc_hash_layer::traits::HashFunction;
 
+/// HexTree (Arity-16) module for high-arity Merkle trees optimized for STARKs.
+pub mod hextree;
+
+/// Sparse Merkle Tree module for OTS index tracking.
+pub mod smt;
+
+pub use hextree::{HexProof, HexTree};
+pub use smt::{SmtError, SparseMerkleTree};
+
 /// Error types for Merkle tree operations.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MerkleError {
