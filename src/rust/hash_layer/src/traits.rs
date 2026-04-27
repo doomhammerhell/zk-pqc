@@ -14,6 +14,7 @@ pub trait HashFunction {
 }
 
 /// Poseidon sponge-based hash (t=6, RF=8, RP=83).
+#[derive(Clone, Copy, Debug)]
 pub struct PoseidonHash;
 
 impl HashFunction for PoseidonHash {

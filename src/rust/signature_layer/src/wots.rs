@@ -112,7 +112,9 @@ impl WotsPlus {
     /// Decompose a FELT into base-w elements (big-endian bit extraction).
     ///
     /// Returns `msg_len` elements, each in [0, w).
-    fn decompose_message(w: usize, message: &FELT) -> Vec<usize> {
+    ///
+    /// This is a public method for use by dependent modules (e.g., XMSS).
+    pub fn decompose_message(w: usize, message: &FELT) -> Vec<usize> {
         #[allow(unused_imports)]
         use lambdaworks_math::traits::ByteConversion;
 

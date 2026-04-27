@@ -46,3 +46,8 @@ pub fn hash_with_ds(ds: felt252, input: Span<felt252>) -> felt252 {
 pub fn hash(input: Span<felt252>) -> felt252 {
     hash_with_ds(0, input)
 }
+
+/// Hash with domain separation (alias for hash_with_ds).
+pub fn hash_with_domain_separation(ds: felt252, input: Span<felt252>) -> felt252 {
+    hash_with_ds(ds, input)
+}
