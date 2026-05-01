@@ -7,8 +7,12 @@ pub mod hextree;
 /// Sparse Merkle Tree module for OTS index tracking.
 pub mod smt;
 
+/// SMT state reconstruction from DA diffs.
+pub mod reconstruct;
+
 pub use hextree::{HexProof, HexTree};
-pub use smt::{SmtError, SparseMerkleTree};
+pub use reconstruct::{ReconstructError, SmtReconstructor};
+pub use smt::{SmtError, SmtProof, SparseMerkleTree};
 
 /// Error types for Merkle tree operations.
 #[derive(Debug, Clone, PartialEq)]

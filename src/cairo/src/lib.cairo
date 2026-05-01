@@ -1,5 +1,6 @@
 mod constants;
 pub mod domain;
+pub mod fri_verifier;
 pub mod hash_trait;
 mod hextree;
 mod hybrid;

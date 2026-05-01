@@ -15,7 +15,7 @@ mod tests {
 
     use zk_pqc_hash_layer::constants::FELT;
     use zk_pqc_hash_layer::sponge::PoseidonSponge;
-    use zk_pqc_hash_layer::traits::{HashFunction, PoseidonHash};
+    use zk_pqc_hash_layer::traits::{HashFunction, HybridHashWrapper, PoseidonHash};
     use zk_pqc_merkle_layer::MerkleTree;
     use zk_pqc_signature_layer::wots::{WotsParams, WotsPlus};
 
@@ -190,6 +190,87 @@ mod tests {
 
             let round_tripped = hex_round_trip(&result1);
             prop_assert_eq!(result1, round_tripped, "Sponge hex round-trip failed");
+        }
+
+        /// Hybrid-Hash is deterministic and serializable.
+        /// Validates: Requirement 6.2, 6.3 (cross-language consistency via determinism)
+        #[test]
+        fn prop_hybrid_hash_deterministic_and_serializable(
+            input in arb_felt_vec(1, 5)
+        ) {
+            let hasher = HybridHashWrapper;
+            let result1 = hasher.hash(&input);
+            let result2 = hasher.hash(&input);
+
+            // Determinism: same input → same output
+            prop_assert_eq!(result1, result2, "Hybrid hash not deterministic");
+
+            // Serialization round-trip: hex encoding preserves value
+            let round_tripped = hex_round_trip(&result1);
+            prop_assert_eq!(result1, round_tripped, "Hybrid hex round-trip failed");
+        }
+
+        /// Hybrid-Hash with domain separation is deterministic and serializable.
+        #[test]
+        fn prop_hybrid_ds_deterministic_and_serializable(
+            input in arb_felt_vec(1, 5),
+            ds in arb_felt()
+        ) {
+            let hasher = HybridHashWrapper;
+            let result1 = hasher.hash_with_domain_separation(ds, &input);
+            let result2 = hasher.hash_with_domain_separation(ds, &input);
+
+            prop_assert_eq!(result1, result2, "Hybrid DS hash not deterministic");
+
+            let round_tripped = hex_round_trip(&result1);
+            prop_assert_eq!(result1, round_tripped, "Hybrid DS hex round-trip failed");
+        }
+
+        /// All hash functions produce consistent outputs that can be serialized
+        /// to JSON format for Cairo consumption.
+        /// Validates: Requirements 6.2, 6.3, 6.4
+        #[test]
+        fn prop_cross_language_json_serialization_format(
+            input in arb_felt_vec(1, 5),
+            ds in arb_felt()
+        ) {
+            let poseidon = PoseidonHash;
+            let hybrid = HybridHashWrapper;
+
+            // Compute all hash outputs
+            let poseidon_out = poseidon.hash(&input);
+            let poseidon_ds_out = poseidon.hash_with_domain_separation(ds, &input);
+            let sponge_out = PoseidonSponge::hash(&input);
+            let hybrid_out = hybrid.hash(&input);
+            let hybrid_ds_out = hybrid.hash_with_domain_separation(ds, &input);
+
+            // Serialize to JSON-compatible hex format (same format Cairo consumes)
+            let input_hex: Vec<String> = input.iter().map(felt_to_hex).collect();
+            let ds_hex = felt_to_hex(&ds);
+
+            // Verify all outputs serialize and deserialize correctly
+            let outputs = [poseidon_out, poseidon_ds_out, sponge_out, hybrid_out, hybrid_ds_out];
+            for (i, output) in outputs.iter().enumerate() {
+                let hex_str = felt_to_hex(output);
+                let recovered = hex_round_trip(output);
+                prop_assert_eq!(*output, recovered,
+                    "JSON serialization round-trip failed for output {}", i);
+
+                // Verify hex string format: starts with 0x, 64 hex chars
+                prop_assert!(hex_str.starts_with("0x"),
+                    "Hex format missing 0x prefix for output {}", i);
+                prop_assert_eq!(hex_str.len(), 66,
+                    "Hex format wrong length for output {} (expected 66, got {})", i, hex_str.len());
+            }
+
+            // Verify input serialization format
+            for (i, hex_str) in input_hex.iter().enumerate() {
+                prop_assert!(hex_str.starts_with("0x"),
+                    "Input hex format missing 0x prefix at index {}", i);
+                prop_assert_eq!(hex_str.len(), 66,
+                    "Input hex format wrong length at index {}", i);
+            }
+            prop_assert!(ds_hex.starts_with("0x"), "DS hex format missing 0x prefix");
         }
 
         /// Merkle tree root is deterministic and proof round-trips for random leaves.
