@@ -1,68 +1,100 @@
-//! Sparse Merkle Tree (SMT) for One-Time Signature Index Tracking in Cairo.
+//! Jellyfish Merkle Tree (JMT) Verification for One-Time Signature Index Tracking in Cairo.
 //!
 //! # Purpose
 //!
 //! WOTS+ is a one-time signature scheme. Reusing an index compromises security.
-//! The SMT tracks consumed indices efficiently, storing only the root on-chain.
+//! The JMT tracks consumed indices efficiently, storing only the root on-chain (32 bytes).
 //!
-//! # Mathematical Foundation
+//! # JMT vs Basic SMT
 //!
-//! A Sparse Merkle Tree is a perfect binary tree of depth 64 (for u64 indices).
-//! Each leaf represents one index:
-//! - `0` = unconsumed/unspent
-//! - `1` = consumed/spent
+//! The Jellyfish Merkle Tree is an optimized Sparse Merkle Tree variant:
+//! - **Path compression**: Empty subtrees are never instantiated; only active
+//!   branches exist in memory.
+//! - **Lazy node instantiation**: Internal nodes are created only when a second
+//!   leaf shares a common prefix, splitting the path at the divergence point.
+//! - **Efficient updates**: Cost proportional to the number of active nodes,
+//!   not the theoretical 2^64 address space.
+//! - **On-chain storage**: Single 32-byte root (constant footprint).
 //!
-//! ## Operations
+//! # Proof Format (matching Rust JMT)
 //!
-//! 1. **Mark consumed**: Insert `1` at index i, updating path to root
-//! 2. **Check spent**: Verify non-membership proof (path shows `0` at index)
-//! 3. **Verify root**: Reconstruct from consumed indices
+//! - Siblings: `depth - 1` elements, ordered from leaf level (level 0) to root.
+//! - Leaf value: 0 = unconsumed, 1 = consumed.
+//! - Routing bit at level i: `(index >> i) & 1` — 0 = left, 1 = right.
+//!
+//! # Verification Algorithm
+//!
+//! 1. Start with the leaf value as `current`.
+//! 2. For each sibling at level i (0..depth-1):
+//!    a. Compute routing bit = (index >> i) & 1
+//!    b. If bit == 0: current is left, sibling is right
+//!    c. If bit == 1: sibling is left, current is right
+//!    d. current = H(left, right)
+//! 3. Compare final `current` with the stored JMT root.
 //!
 //! # Formal Properties
 //!
 //! 1. **Correctness**: After marking index i as consumed, verify(i) = spent
 //! 2. **Non-forgeability**: Cannot prove index unconsumed after it's marked
-//! 3. **Incremental updates**: Root updates in O(depth) per new consumed index
+//! 3. **Incremental updates**: Root updates in O(active_depth) per new consumed index
+//!
+//! Requirements: 16.3, 16.4
 
-/// SMT depth for u64 indices.
+/// JMT depth for u64 indices.
+/// The tree has 64 levels (0..63), with depth-1 = 63 internal node levels.
+const JMT_DEPTH: u32 = 64;
+
+/// Number of siblings in a JMT proof (depth - 1).
+const JMT_PROOF_SIBLINGS: u32 = 63;
+
+/// Legacy SMT depth constant (kept for backward compatibility).
 const SMT_DEPTH: u32 = 64;
 
-/// Empty leaf value (hash of nothing, or zero).
+/// Empty leaf value (zero — represents unconsumed/unspent).
 fn empty_leaf() -> felt252 {
     0
 }
 
-/// Consumed leaf value (different from empty).
+/// Consumed leaf value (1 — represents consumed/spent).
 fn consumed_leaf() -> felt252 {
     1
 }
 
-/// SMT proof structure for verifying index status.
+/// JMT proof structure for verifying index status.
+///
+/// Matches the Rust `SmtProof` format:
+/// - `siblings`: depth - 1 hashes (63 for u64 indices), leaf-to-root order
+/// - `leaf_value`: 0 for unconsumed, 1 for consumed
 #[derive(Drop, Clone)]
 pub struct SmtProof {
     /// Sibling hashes at each level (from leaf to root).
+    /// Length must be JMT_PROOF_SIBLINGS (depth - 1 = 63).
     pub siblings: Array<felt252>,
     /// Leaf value (0 for unconsumed, 1 for consumed).
     pub leaf_value: felt252,
 }
 
-/// Verifies an SMT proof against a given root.
+/// Verifies a JMT proof against a given root.
 ///
 /// # Arguments
-/// * `root` - Expected SMT root
+/// * `root` - Expected JMT root
 /// * `index` - Index being verified
-/// * `proof` - SMT proof with siblings and leaf value
+/// * `proof` - JMT proof with siblings and leaf value
 /// * `expected_consumed` - Whether index should be consumed (true) or not (false)
 ///
 /// # Returns
 /// * `true` if proof is valid and matches expected state
 /// * `false` otherwise
 ///
-/// # Formal Verification
-/// This implements the SMT verification predicate:
-/// verify(root, index, proof, expected) ↔
-///   proof.leaf == expected_leaf ∧
-///   recompute_root(proof.siblings, index, proof.leaf) == root
+/// # Proof Verification
+///
+/// Recomputes the root from the leaf value and siblings using the JMT routing:
+/// - At level i, routing bit = (index >> i) & 1
+/// - 0 = current goes left, sibling goes right
+/// - 1 = sibling goes left, current goes right
+/// - Siblings are in leaf-to-root order (level 0 first)
+///
+/// Requirements: 16.3, 16.4
 pub fn verify_smt_proof(
     root: felt252, index: u64, proof: @SmtProof, expected_consumed: bool,
 ) -> bool {
@@ -77,12 +109,14 @@ pub fn verify_smt_proof(
         return false;
     }
 
-    // Check proof has correct number of siblings
-    if proof.siblings.len() != SMT_DEPTH {
+    // JMT proofs have depth - 1 siblings
+    if proof.siblings.len() != JMT_PROOF_SIBLINGS {
         return false;
     }
 
     // Recompute root from leaf + siblings
+    // Siblings are in leaf-to-root order.
+    // At level i (0-indexed from leaf), the routing bit is (index >> i) & 1.
     let mut current = *proof.leaf_value;
     let mut idx = index;
 
@@ -114,15 +148,15 @@ pub fn verify_smt_proof(
     current == root
 }
 
-/// Computes the root of an SMT from a leaf and its path.
+/// Computes the root of a JMT from a leaf and its path.
 ///
 /// # Arguments
 /// * `leaf` - Leaf value
 /// * `index` - Leaf index
-/// * `siblings` - Sibling hashes at each level
+/// * `siblings` - Sibling hashes at each level (depth - 1 elements, leaf-to-root)
 ///
 /// # Returns
-/// * Computed SMT root
+/// * Computed JMT root
 pub fn compute_root_from_leaf(leaf: felt252, index: u64, siblings: Span<felt252>) -> felt252 {
     let mut current = leaf;
     let mut idx = index;
@@ -155,13 +189,13 @@ pub fn compute_root_from_leaf(leaf: felt252, index: u64, siblings: Span<felt252>
 ///
 /// # Arguments
 /// * `index` - Index to prove is unconsumed
-/// * `siblings` - Sibling hashes from leaf to root
+/// * `siblings` - Sibling hashes from leaf to root (depth - 1 elements)
 ///
 /// # Returns
-/// * SMT proof showing index is unconsumed
+/// * JMT proof showing index is unconsumed
 pub fn prove_unconsumed(index: u64, siblings: Array<felt252>) -> SmtProof {
-    // Verify siblings count
-    assert(siblings.len() == SMT_DEPTH, 'invalid siblings count');
+    // Verify siblings count matches JMT format
+    assert(siblings.len() == JMT_PROOF_SIBLINGS, 'invalid siblings count');
 
     SmtProof { siblings, leaf_value: empty_leaf() }
 }
@@ -170,13 +204,13 @@ pub fn prove_unconsumed(index: u64, siblings: Array<felt252>) -> SmtProof {
 ///
 /// # Arguments
 /// * `index` - Index to prove is consumed
-/// * `siblings` - Sibling hashes from leaf to root
+/// * `siblings` - Sibling hashes from leaf to root (depth - 1 elements)
 ///
 /// # Returns
-/// * SMT proof showing index is consumed
+/// * JMT proof showing index is consumed
 pub fn prove_consumed(index: u64, siblings: Array<felt252>) -> SmtProof {
-    // Verify siblings count
-    assert(siblings.len() == SMT_DEPTH, 'invalid siblings count');
+    // Verify siblings count matches JMT format
+    assert(siblings.len() == JMT_PROOF_SIBLINGS, 'invalid siblings count');
 
     SmtProof { siblings, leaf_value: consumed_leaf() }
 }
@@ -201,10 +235,10 @@ pub fn compute_empty_subtree_root(depth: u32) -> felt252 {
 }
 
 /// Hash two field elements together using Poseidon.
+///
+/// This is the core hash function for JMT internal nodes.
+/// Uses the same Poseidon permutation as the Rust JMT implementation.
 fn hash_pair(left: felt252, right: felt252) -> felt252 {
-    // Simple hash of two elements
-    // In production, this should use the proper Poseidon hash
-    // For now, we use a simple combination
     let mut state = array![left, right, 0, 0, 0, 0];
     zk_pqc_cairo::poseidon::permute(ref state);
     *state.at(0)
@@ -212,14 +246,20 @@ fn hash_pair(left: felt252, right: felt252) -> felt252 {
 
 /// Verifies that an index is not consumed (non-membership proof).
 ///
+/// This is the primary function used by the PCA contract to verify
+/// that an OTS index has not been previously used before allowing
+/// a new authorization.
+///
 /// # Arguments
-/// * `root` - Current SMT root
+/// * `root` - Current JMT root (32 bytes constant storage)
 /// * `index` - Index to check
-/// * `proof` - SMT proof
+/// * `proof` - JMT proof (depth-1 siblings + leaf value)
 ///
 /// # Returns
-/// * `true` if index is unconsumed (proof valid)
+/// * `true` if index is unconsumed (proof valid against root)
 /// * `false` otherwise
+///
+/// Requirements: 16.3, 16.4
 pub fn verify_unconsumed(root: felt252, index: u64, proof: @SmtProof) -> bool {
     verify_smt_proof(root, index, proof, false)
 }
@@ -227,9 +267,9 @@ pub fn verify_unconsumed(root: felt252, index: u64, proof: @SmtProof) -> bool {
 /// Verifies that an index is consumed (membership proof).
 ///
 /// # Arguments
-/// * `root` - Current SMT root
+/// * `root` - Current JMT root
 /// * `index` - Index to check
-/// * `proof` - SMT proof
+/// * `proof` - JMT proof
 ///
 /// # Returns
 /// * `true` if index is consumed (proof valid)
@@ -238,12 +278,12 @@ pub fn verify_consumed(root: felt252, index: u64, proof: @SmtProof) -> bool {
     verify_smt_proof(root, index, proof, true)
 }
 
-/// Batch verification of multiple SMT proofs.
+/// Batch verification of multiple JMT proofs.
 ///
 /// # Arguments
-/// * `root` - SMT root
+/// * `root` - JMT root
 /// * `indices` - Array of indices to verify
-/// * `proofs` - Array of SMT proofs (must match indices length)
+/// * `proofs` - Array of JMT proofs (must match indices length)
 /// * `expected_consumed` - Whether indices should be consumed
 ///
 /// # Returns
@@ -269,4 +309,20 @@ pub fn batch_verify_proofs(
     }
 
     true
+}
+
+/// Compute the new JMT root after marking an index as consumed.
+///
+/// Given the current unconsumed proof for an index, computes what the
+/// new root would be if that index were marked as consumed (leaf value
+/// changes from 0 to 1).
+///
+/// # Arguments
+/// * `index` - Index being consumed
+/// * `siblings` - Sibling hashes from the unconsumed proof (depth-1 elements)
+///
+/// # Returns
+/// * New JMT root with the index marked as consumed
+pub fn compute_new_root_after_consume(index: u64, siblings: Span<felt252>) -> felt252 {
+    compute_root_from_leaf(consumed_leaf(), index, siblings)
 }

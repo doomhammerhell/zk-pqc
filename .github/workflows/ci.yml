@@ -134,3 +134,55 @@ jobs:
             echo "::error::Test vectors are stale! Regenerate with: cd src/rust && cargo run -p zk_pqc_test_vectors && cd ../.. && npx prettier --write spec/test_vectors/*.json"
             exit 1
           }
+
+  rust-thorough-property-tests:
+    name: Rust — Thorough Property Tests (100 iterations)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    needs: [rust-build-and-test]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run Thorough Property Tests (--ignored)
+        run: cargo test --all-features --release -- --ignored
+        working-directory: ./src/rust
+
+  rust-benchmarks:
+    name: Rust — STARK Prover Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [rust-build-and-test]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run STARK Prover Benchmark
+        run: cargo test --release -p zk_pqc_proof_layer -- test_real_stark_pca_prove_verify --nocapture 2>&1 | tee benchmark_output.txt
+        working-directory: ./src/rust
+
+      - name: Run WOTS+ Benchmark (Poseidon-only path)
+        run: |
+          echo "=== WOTS+ STARK Proof Benchmark (Poseidon-only) ==="
+          cargo test --release -p zk_pqc_proof_layer -- test_real_stark --nocapture 2>&1 | tee -a benchmark_output.txt
+          echo "=== Benchmark complete ==="
+        working-directory: ./src/rust
+
+      - name: Upload Benchmark Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: src/rust/benchmark_output.txt
+          retention-days: 30
