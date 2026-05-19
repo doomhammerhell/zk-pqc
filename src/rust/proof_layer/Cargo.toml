@@ -8,7 +8,7 @@ zk_pqc_hash_layer = { path = "../hash_layer" }
 zk_pqc_signature_layer = { path = "../signature_layer" }
 lambdaworks-math = "0.13.0"
 lambdaworks-crypto = "0.13.0"
-stark-platinum-prover = { git = "https://github.com/lambdaclass/lambdaworks", tag = "v0.13.0" }
+stark-platinum-prover = { git = "https://github.com/lambdaclass/lambdaworks", tag = "v0.15.0" }
 log = "0.4"
 
 [dev-dependencies]
