@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 zk_pqc_core = { path = "../core" }
 lambdaworks-math = "0.13.0"
-sha2 = "0.10"
+sha2 = "0.11"
 
 [dev-dependencies]
 proptest = "1.4"
